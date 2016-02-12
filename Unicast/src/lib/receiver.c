@@ -21,7 +21,7 @@ FILE *as_read_some = NULL; // Random access
 FILE *as_write = NULL;
 //char acks[IPRP_ACTIVESENDERS_MAX_SENDERS];
 
-int active_senders_init() {
+int receiver_init() {
 	as_write = fopen(IPRP_ACTIVESENDERS_FILE, "a");
 	if (as_write == NULL) {
 		ERR("Unable to open writer file descriptor for active senders", errno);

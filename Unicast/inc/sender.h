@@ -46,7 +46,7 @@ struct iprp_peerbase {
 };
 
 /* Library functions */
-int peerbase_init();
+int sender_init();
 iprp_sender_link_t *peerbase_query(iprp_capmsg_t *cap, struct in_addr *dest_addr);
 int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds);
 int peerbase_update(iprp_sender_link_t *link);

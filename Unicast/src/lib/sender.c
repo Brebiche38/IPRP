@@ -26,7 +26,7 @@ extern iprp_host_t this;
 
 list_t* current_links; // sender_link_t
 
-int peerbase_init() {
+int sender_init() {
 	current_links = malloc(sizeof(list_t));
 	if (current_links == NULL) {
 		ERR("Unable to allocate", ENOMEM);

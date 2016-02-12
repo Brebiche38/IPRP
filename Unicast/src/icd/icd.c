@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 #include "../../inc/icd.h"
 #include "../../inc/types.h"
@@ -23,16 +24,33 @@
 #include "../../inc/log.h"
 #include "../../inc/util.h"
 
-iprp_host_t this;
+iprp_host_t this; /** Information about the current machine */
 
+/**
+Control daemon entry point
+
+The main() function's role is to setup the environment for the control,
+receiver and sender routines, which are the three main routines of the control
+daemon. The function processes the command-line arguments and creates the
+control socket used to receive control messages from other hosts (in the
+control routine), as well as the pipes used to transmit those messages to the
+sender or receiver daemons, acconrding to need. The function then launches the
+sender and receiver threads and executes the control routine itself.
+
+\param TBD
+\return does not return 
+*/
 int main(int argc, char const *argv[]) {
-	// Phase 0: manual setup
+	
+	/* Phase 0: manual setup */
+
 	if (argc != 5) return -1;
 	// Create this
 	this.ifaces[0].ind = 0x1;
 	inet_pton(AF_INET, argv[1], &this.ifaces[0].addr);
 	this.ifaces[1].ind = 0x2;
 	inet_pton(AF_INET, argv[2], &this.ifaces[1].addr);
+	
 	// Create active senders entry
 	iprp_as_entry_t entry;
 	entry.host.ifaces[0].ind = 0x1;
@@ -40,8 +58,8 @@ int main(int argc, char const *argv[]) {
 	entry.host.ifaces[1].ind = 0x2;
 	inet_pton(AF_INET, argv[4], &entry.host.ifaces[1].addr);
 	entry.last_seen = time(NULL);
+	
 	// Store active senders entry
-
 	FILE* as_list = fopen(IPRP_ACTIVESENDERS_FILE, "w");
 	if (as_list == NULL) {
 		ERR("Unable to create file descriptor for AS list", errno);
@@ -54,19 +72,9 @@ int main(int argc, char const *argv[]) {
 		ERR("Unable to close fd for as list", errno);
 	}
 
-	// Phase 1: setup environment
+	/* Phase 1: setup environment */
+
 	int err;
-
-	// Setup active senders list and peer base
-	if ((err = active_senders_init())) {
-		ERR("Unable to initialize active senders list", err);
-	}
-	LOG("[main] Active senders list initialized");
-
-	if ((err = peerbase_init())) {
-		ERR("Unable to initialize peer-base list", err);
-	}
-	LOG("[main] Peer base list initialized");
 
 	// Setup receiver side (thread, pipe)
 	pthread_t recv_thread;
@@ -101,7 +109,8 @@ int main(int argc, char const *argv[]) {
 	// Setup monitoring daemon
 	// TODO
 
-	// Phase 2 : Listen on iPRP control port
+	/* Phase 2 : Listen on iPRP control port */
+
 	int ctl_socket;
 
 	// Open socket
@@ -125,17 +134,29 @@ int main(int argc, char const *argv[]) {
 	// Begin to listen to the socket and do the job
 	control_routine(ctl_socket, recv_pipe[1], send_pipe[1]);
 
+	/* Should not reach this part */
+
 	LOG("[main] Out of control routine. Entering infinite loop");
-
-	while(1);
-
+	while(true);
 	return EXIT_FAILURE;
 }
 
-void* control_routine(int ctl_socket, int recv_pipe_write, int send_pipe_write) {
+/**
+Dispatcher for control messages
+
+The control routine listens on the iPRP control port and forwards the received
+packets to the sender side if it is a CAP message, or to the receiver side if
+it is an ACK message. The routine drops any unrecognized packet.
+
+\param ctl_socket the socket on which control packets are sent
+\param recv_pipe_write the writing end of the pipe to the receiver routine
+\param send_pipe_write the writing end of the pipe to the sender routine
+\return does not return
+*/
+void control_routine(int ctl_socket, int recv_pipe_write, int send_pipe_write) {
 	LOG("[ctl] In routine");
 	// Listen for control messages and forward them accordingly
-	while (1) {
+	while (true) {
 		struct sockaddr_in source_sa;
 		iprp_ctlmsg_t msg;
 		// Receive message
@@ -176,13 +197,29 @@ void* control_routine(int ctl_socket, int recv_pipe_write, int send_pipe_write) 
 		}
 		LOG("[ctl] End loop");
 	}
-
-	return NULL;
 }
 
+/**
+Receiver-side control flow
+
+The receiver routine sets up the auxiliary thread(s) needed at the receiver
+side (to send CAP messages). It then listens for ACK messages coming from the
+control routine and treats them as expected.
+
+\param recv_pipe_read the reading end of the pipe to the control routine
+\return does not return
+*/
 // TODO bypass to sendcap_routine
 void* receiver_routine(void *arg) {
-	LOG("[recv] In routine");
+	int recv_pipe_read = (int) arg;
+
+	// Setup receiver logic
+	int err;
+	if ((err = receiver_init())) {
+		ERR("Unable to initialize active senders list", err);
+	}
+	LOG("[recv] Active senders list initialized");
+
 	// Setup sendcap routine
 	pthread_t sendcap_thread;
 	int err;
@@ -191,8 +228,7 @@ void* receiver_routine(void *arg) {
 	}
 	LOG("[recv] Sendcap thread created");
 
-	int recv_pipe_read = (int) arg;
-	while(1) {
+	while(true) {
 //		iprp_ackmsg_t msg;
 //		int bytes;
 //		if ((bytes = read(recv_pipe_read, &msg, sizeof(iprp_ackmsg_t))) != sizeof(iprp_ackmsg_t)) {
@@ -209,10 +245,18 @@ void* receiver_routine(void *arg) {
 
 		//if (is_active_sender(sender)) ...
 	}
-
-	return NULL;
 }
 
+/**
+Sends CAP messages to the active senders
+
+The sendcap routine first sets up a socket to send messages. It then sends CAP
+messages every TCAP seconds to all senders currently present in the list of
+active senders.
+
+\param none
+\return does not return
+*/
 void* receiver_sendcap_routine(void* arg) {
 	LOG("[sendcap] In routine");
 	// Create sender socket
@@ -222,7 +266,7 @@ void* receiver_sendcap_routine(void* arg) {
 	}
 	LOG("[sendcap] socket created");
 
-	while(1) {
+	while(true) {
 		iprp_host_t senders[IPRP_MAX_SENDERS];
 		int count = get_active_senders(senders, IPRP_MAX_SENDERS, IPRP_AS_ALL);
 		LOG("[sendcap] Active senders retrieved");
@@ -234,11 +278,27 @@ void* receiver_sendcap_routine(void* arg) {
 	}
 }
 
+/**
+Sender-side control flow
+
+The sender routine receives CAP messages from the control routine and treats them as expected. It updates the necessary peer bases and creates the sender daemons needed to duplicate the outgoing traffic. Before it begins, it also creates a cleanup thread to remove old entries from the peer base.
+
+\param send_pipe_read the reading end of the pipe to the control routine
+\return does not return
+*/
 // TODO bypass pipe (only 1 type) ??
 void* sender_routine(void *arg) {
-	LOG("[send] in routine");
 	int send_pipe_read = (int) arg;
-	while(1) {
+
+	// Setup sender logic
+	int err;
+	if ((err = sender_init())) {
+		ERR("Unable to initialize peer-base list", err);
+	}
+	LOG("[main] Peer base list initialized");
+
+	LOG("[send] in routine");
+	while(true) {
 		iprp_capmsg_t msg;
 		struct in_addr addr;
 		int bytes;

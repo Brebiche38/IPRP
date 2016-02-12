@@ -20,7 +20,7 @@ typedef struct iprp_activesenders_entry {
 } iprp_as_entry_t;
 
 /* Library functions */
-int active_senders_init();
+int receiver_init();
 int get_active_senders(iprp_host_t *buf, size_t size, int flags);
 //int is_active_sender(iprp_sender_t *sender);
 //void set_sender_ack(iprp_sender_t *sender);

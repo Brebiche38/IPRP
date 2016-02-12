@@ -11,7 +11,7 @@
 #include "types.h"
 
 int main(int argc, char const *argv[]);
-void* control_routine(int ctl_socket, int recv_pipe_write, int send_pipe_write);
+void control_routine(int ctl_socket, int recv_pipe_write, int send_pipe_write);
 void* receiver_routine(void *arg);
 void* receiver_sendcap_routine(void *arg);
 void* sender_routine(void *arg);
