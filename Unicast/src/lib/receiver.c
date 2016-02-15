@@ -91,7 +91,7 @@ int parse_as_entry(char *line, iprp_as_entry_t *entry) {
 	char *token;
 
 
-	for (int i = 0; i < IPRP_MAX_IFACE; ++i) {
+	for (int i = 0; i < 2; ++i) { // TODO variable number of ifaces
 		// 1. IND
 		token = strtok((i == 0) ? line : NULL, ",");
 		if (token == NULL) return IPRP_ERR_BADFORMAT;

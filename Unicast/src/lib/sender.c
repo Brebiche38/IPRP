@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <arpa/inet.h>
 #include <time.h>
 #include <stdbool.h>
@@ -26,7 +27,7 @@ extern iprp_host_t this;
 
 list_t* current_links; // sender_link_t
 
-int sender_init() {
+int sender_init() { // TODO remove arg with bootstrap
 	current_links = malloc(sizeof(list_t));
 	if (current_links == NULL) {
 		ERR("Unable to allocate", ENOMEM);
@@ -51,12 +52,13 @@ int sender_init() {
 }
 
 iprp_sender_link_t *peerbase_query(iprp_capmsg_t *cap, struct in_addr *dest_addr) {
-	if (!cap | !dest_addr) return NULL;
+	if (!cap || !dest_addr) return NULL;
 
 	list_t *iterator = current_links;
 
-	while(iterator) {
+	while(iterator && iterator->elem) {
 		iprp_sender_link_t *link = (iprp_sender_link_t *) iterator->elem;
+		printf("%x %x %d %d %d %d\n", link->dest_addr.s_addr, dest_addr->s_addr, link->src_port, cap->src_port, link->dest_port, cap->src_port);
 		if (link->dest_addr.s_addr == dest_addr->s_addr && link->src_port == cap->src_port && link->dest_port == cap->src_port) {
 			return link;
 		}
@@ -88,6 +90,7 @@ iprp_sender_link_t *peerbase_query(iprp_capmsg_t *cap, struct in_addr *dest_addr
 }
 
 int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
+	LOG("insert");
 	// 1. Create peer base
 	iprp_peerbase_t peerbase;
 	bzero(&peerbase, sizeof(iprp_peerbase_t));
@@ -112,12 +115,15 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 
 	peerbase.link.last_cap = time(NULL);
 
+	LOG("Still there");
+
 	// TODO 1. Create file for sender deamon
 	char path[IPRP_PATH_LENGTH];
 	snprintf(path, IPRP_PATH_LENGTH, "files/base_%x.iprp", receiver->id);
 	peerbase_store(path, &peerbase);
 
 	// Launch sender deamon and GET PID
+	/* TODO enable
 	pid_t pid = fork();
 	if (pid == -1) {
 		ERR("Unable to create sender deamon", errno);
@@ -128,6 +134,7 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 	} else {
 		link->isd_pid = pid;
 	}
+	*/
 
 	// TODO 2. Insert in current links list
 	list_append(current_links, link);
@@ -201,11 +208,14 @@ int peerbase_store(const char* path, iprp_peerbase_t *base) {
 
 	// Save file
 	FILE* writer = fopen(path, "w");
+	printf("%s\n", path);
 	if (!writer) {
 		ERR("Unable to write to peerbase file", errno);
 	}
 
-	fwrite(base, sizeof(iprp_peerbase_t), 1, writer);		
+	fwrite(base, sizeof(iprp_peerbase_t), 1, writer);
+
+	fflush(writer);		
 
 	fclose(writer);
 
@@ -271,6 +281,7 @@ int peerbase_load(const char *path, iprp_peerbase_t *base) {
 
 	FILE* reader = fopen(path, "r");
 	if (!reader) {
+		printf("%s\n", path);
 		ERR("Unable to read peerbase file", errno);
 	}
 
@@ -316,7 +327,7 @@ int peerbase_cleanup(time_t expiration) {
 		if (link->last_cap < expiration) {
 			// Delete corresponding connection
 			// send SIGTERM to ISD, need to know pid
-			kill(link->isd_pid, SIGTERM);
+			// TODO kill(link->isd_pid, SIGTERM);
 		}
 	}
 	return 0;

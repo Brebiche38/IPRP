@@ -6,6 +6,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "../../inc/util.h"
 
@@ -20,13 +21,13 @@ int send_cap(iprp_host_t *sender, int socket) {
 	
 	msg.message.cap_message.iprp_version = IPRP_VERSION;
 	msg.message.cap_message.receiver = this;
-	// msg.message.cap_message.packet_source = 
-	// msg.message.cap_message.packet_dest = 
+	msg.message.cap_message.src_port = 0;
+	msg.message.cap_message.dest_port = 0;
 
 	// Send message
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
-	addr.sin_port = IPRP_CTL_PORT;
+	addr.sin_port = htons(IPRP_CTL_PORT);
 	addr.sin_addr = sender->ifaces[0].addr;
 
 	sendto(socket, (void*) &msg, sizeof(msg), 0, (struct sockaddr*) &addr, sizeof(addr));
@@ -83,10 +84,16 @@ void list_init(list_t *list, void* value) {
 }
 
 void list_append(list_t *list, void* value) {
-	list_t *new_elem = malloc(sizeof(list_t));
-	new_elem->elem = value;
-	new_elem->prev = list->prev;
-	new_elem->next = list;
-	list->prev = new_elem;
-	list->prev->next = new_elem;
+	if (list->prev == NULL && list->next == NULL) {
+		list->elem = value;
+		list->prev = list;
+		list->next = list;
+	} else {
+		list_t *new_elem = malloc(sizeof(list_t));
+		new_elem->elem = value;
+		new_elem->prev = list->prev;
+		new_elem->next = list;
+		list->prev->next = new_elem;		
+		list->prev = new_elem;
+	}
 }

@@ -25,6 +25,7 @@
 #include "../../inc/util.h"
 
 iprp_host_t this; /** Information about the current machine */
+int ctl_socket;
 
 /**
 Control daemon entry point
@@ -41,7 +42,6 @@ sender and receiver threads and executes the control routine itself.
 \return does not return 
 */
 int main(int argc, char const *argv[]) {
-	
 	/* Phase 0: manual setup */
 
 	if (argc != 5) return -1;
@@ -111,8 +111,6 @@ int main(int argc, char const *argv[]) {
 
 	/* Phase 2 : Listen on iPRP control port */
 
-	int ctl_socket;
-
 	// Open socket
 	if ((ctl_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 		ERR("Unable to create control socket", errno);
@@ -123,7 +121,7 @@ int main(int argc, char const *argv[]) {
 	struct sockaddr_in ctl_sa;
 
 	ctl_sa.sin_family = AF_INET;
-	ctl_sa.sin_port = IPRP_CTL_PORT;
+	ctl_sa.sin_port = htons(IPRP_CTL_PORT);
 	ctl_sa.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	if (bind(ctl_socket, (struct sockaddr *) &ctl_sa, sizeof(ctl_sa)) == -1) {
@@ -132,7 +130,7 @@ int main(int argc, char const *argv[]) {
 	LOG("[main] Control socket bound");
 
 	// Begin to listen to the socket and do the job
-	control_routine(ctl_socket, recv_pipe[1], send_pipe[1]);
+	control_routine(recv_pipe[1], send_pipe[1]);
 
 	/* Should not reach this part */
 
@@ -153,7 +151,7 @@ it is an ACK message. The routine drops any unrecognized packet.
 \param send_pipe_write the writing end of the pipe to the sender routine
 \return does not return
 */
-void control_routine(int ctl_socket, int recv_pipe_write, int send_pipe_write) {
+void control_routine(int recv_pipe_write, int send_pipe_write) {
 	LOG("[ctl] In routine");
 	// Listen for control messages and forward them accordingly
 	while (true) {
@@ -213,8 +211,9 @@ control routine and treats them as expected.
 void* receiver_routine(void *arg) {
 	int recv_pipe_read = (int) arg;
 
-	// Setup receiver logic
 	int err;
+
+	// Setup receiver logic
 	if ((err = receiver_init())) {
 		ERR("Unable to initialize active senders list", err);
 	}
@@ -222,7 +221,6 @@ void* receiver_routine(void *arg) {
 
 	// Setup sendcap routine
 	pthread_t sendcap_thread;
-	int err;
 	if ((err = pthread_create(&sendcap_thread, NULL, receiver_sendcap_routine, NULL)) != 0) {
 		ERR("Unable to setup iPRP_CAP sender thread", err);
 	}
@@ -261,6 +259,7 @@ void* receiver_sendcap_routine(void* arg) {
 	LOG("[sendcap] In routine");
 	// Create sender socket
 	int sendcap_socket;
+
 	if ((sendcap_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 		ERR("Unable to create send CAP socket", errno);
 	}
@@ -314,6 +313,7 @@ void* sender_routine(void *arg) {
 
 		// 1. Query peer base for source
 		iprp_sender_link_t *link = peerbase_query(&msg, &addr);
+
 		if (link) {
 			LOG("[send] Found receiver. Updating peer base");
 			// 2. If present, update the keep-alive timer
