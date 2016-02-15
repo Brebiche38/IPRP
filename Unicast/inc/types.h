@@ -25,6 +25,7 @@ typedef struct iprp_ackmsg iprp_ackmsg_t;
 typedef enum iprp_msgtype iprp_msgtype_t;
 typedef struct iprp_interface iprp_iface_t;
 typedef struct iprp_host iprp_host_t;
+typedef struct iprp_header iprp_header_t;
 //typedef struct iprp_host iprp_sender_t;
 //typedef struct iprp_host iprp_recv_t;
 
@@ -65,6 +66,15 @@ struct iprp_ctlmsg {
 		iprp_capmsg_t cap_message;
 		iprp_ackmsg_t ack_message;
 	} message;
+};
+
+struct iprp_header {
+	uint8_t version;
+	char snsid[19]; // TODO check if size possible
+	uint32_t seq_nb;
+	uint16_t orig_dest_port;
+	iprp_ind_t ind;
+	char hmac[160];
 };
 
 #endif /* __IPRP_TYPES_ */

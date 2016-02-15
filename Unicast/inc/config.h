@@ -15,6 +15,7 @@
 #define IPRP_MAX_IFACE 4
 #define IPRP_MAX_INDS 16
 #define IPRP_PATH_LENGTH 50
+#define IPRP_PACKET_BUFFER_SIZE 4096
 
 #define IPRP_ISD_BINARY_LOC "bin/isd"
 
