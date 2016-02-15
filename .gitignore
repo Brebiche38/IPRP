@@ -34,5 +34,8 @@
 # Binaries folders
 */bin/*
 
+# Temporary folders
+*/files/*
+
 # Mac files
 *.DS_Store
