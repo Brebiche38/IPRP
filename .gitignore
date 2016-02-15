@@ -33,3 +33,6 @@
 
 # Binaries folders
 */bin/*
+
+# Mac files
+*/.DS_Store
