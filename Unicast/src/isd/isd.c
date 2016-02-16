@@ -4,6 +4,10 @@
 #include <stdint.h> // Warning: include before netfilter queue
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <unistd.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
+#include <string.h>
+
 
 #include "../../inc/isd.h"
 #include "../../inc/types.h"
@@ -13,6 +17,9 @@
 
 // TODO find way to not need this
 iprp_host_t this;
+
+uint16_t reboot_counter;
+uint32_t seq_nb;
 
 struct nfq_handle *handle;
 struct nfq_q_handle *queue;
@@ -28,6 +35,10 @@ int main(int argc, char const *argv[]) {
 	// Get arguments
 	int queue_id = atoi(argv[1]);
 	int receiver_id = atoi(argv[2]);
+
+	// Compute reboot counter
+	srand(time(NULL));
+	reboot_counter = (uint16_t) rand();
 
 	// Setup nfqueue
 	handle = nfq_open();
@@ -57,6 +68,7 @@ int main(int argc, char const *argv[]) {
 
 	// Create send sockets
 	// TODO isn't it overkill if most are not used?
+	// TODO do we really need multiple sockets ? Probably yes
 	for (int i = 0; i < IPRP_MAX_IFACE; ++i) {
 		if ((sockets[i] = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 			ERR("Unable to create socket", errno);
@@ -131,8 +143,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	// TODO do
 
 	// 1. Get header and payload
-	struct nfqnl_msg_packet_hdr *header = nfq_get_msg_packet_hdr (packet); // TODO no error check in IPv6 version
-	if (!header) {
+	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr (packet); // TODO no error check in IPv6 version
+	if (!nfq_header) {
 		// TODO just let it go?
 		ERR("Unable to retrieve header form received packet", IPRP_ERR_NFQUEUE);
 	}
@@ -144,7 +156,60 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);
 	}
 
-	// 2. 
+	// Get payload headers
+	struct iphdr *ip_header = (struct iphdr *) buf;
+	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr)); // TODO sizeof(uint32_t) * ip_header->ip_hdr_len
+
+	// 2. Create iPRP header and new packet
+	char *new_packet = malloc(bytes - sizeof(struct iphdr) - sizeof(struct udphdr) + sizeof(iprp_header_t));
+	if (new_packet == NULL) {
+		// TODO handle this better
+		ERR("Unable to allocate new packet buffer", errno);
+	}
+
+	iprp_header_t *header = (iprp_header_t *) new_packet;
+
+	header->version = IPRP_VERSION;
+
+	// TODO compute snsid from peer base ?
+	for (int i = 0; i < 4; ++i) {
+		memcpy(&header->snsid[i * 4], &ip_header->saddr, 4);
+	}
+	memcpy(&header->snsid[16], &udp_header->source, 2);
+	memcpy(&header->snsid[18], &reboot_counter, 2);
+	
+	header->seq_nb = seq_nb;
+	header->dest_port = udp_header->dest;
+
+	// Duplicate packets
+	int socket_id = 0;
+	for (int i = 0; i < IPRP_MAX_INDS; ++i) {
+		if (base.paths[i].active) {
+			header->ind = base.paths[i].iface.ind;
+			// TODO compute MAC
+
+			memcpy(new_packet + sizeof(iprp_header_t), buf + sizeof(struct iphdr) + sizeof(struct udphdr), bytes - sizeof(struct iphdr) - sizeof(struct udphdr));
+
+			struct sockaddr_in recv_addr;
+			recv_addr.sin_family = AF_INET;
+			recv_addr.sin_port = htons(IPRP_DATA_PORT);
+			recv_addr.sin_addr = base.paths[i].iface.addr;
+			memset(&recv_addr.sin_zero, 0, sizeof(recv_addr.sin_zero));
+
+			if (sendto(sockets[socket_id], new_packet, sizeof(new_packet), 0, (struct sockaddr *) &recv_addr, sizeof(recv_addr)) == -1) {
+				ERR("Unable to send packet", errno);
+			}
+
+			socket_id++;
+		}
+	}
+	// Increase seq nb
+	seq_nb = (seq_nb + 1) % UINT32_MAX;
+
+	if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), 0, bytes, buf) == -1) { // TODO NF_DROP
+		ERR("Unable to set verdict", IPRP_ERR_NFQUEUE);
+	}
+	return 0;
 }
 
 void cleanup() {
