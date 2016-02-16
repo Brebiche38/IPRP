@@ -29,6 +29,7 @@ struct list {
 };
 void list_init(list_t *list, void* value);
 void list_append(list_t *list, void* value);
+// ATTENTION: doubly linked but not cyclical
 
 #define LIST_ITERATE(list, type, var, body) 	\
 	void *iterator = (list);					\

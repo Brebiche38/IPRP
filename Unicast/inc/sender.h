@@ -30,6 +30,7 @@ struct iprp_sender_link {
 	uint16_t src_port;
 	uint16_t dest_port;
 	uint32_t receiver_id; // necessary
+	uint16_t queue_id;
 	pid_t isd_pid;
 	time_t last_cap;
 };
@@ -56,6 +57,7 @@ int peerbase_store(const char* path, iprp_peerbase_t *base);
 int peerbase_load(const char* path, iprp_peerbase_t *base);
 
 /* Utility functions */
+uint16_t get_queue_number();
 
 /*
  Peer base file format

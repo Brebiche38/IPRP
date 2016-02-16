@@ -32,6 +32,7 @@ pthread_mutex_t base_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_t cache_thread;
 
 int main(int argc, char const *argv[]) {
+	LOG("[isd] started");
 	// Get arguments
 	int queue_id = atoi(argv[1]);
 	int receiver_id = atoi(argv[2]);
@@ -66,6 +67,8 @@ int main(int argc, char const *argv[]) {
 	}
 	queue_fd = nfq_fd(handle); // TODO check for error ?
 
+	LOG("[isd] nfqueue created");
+
 	// Create send sockets
 	// TODO isn't it overkill if most are not used?
 	// TODO do we really need multiple sockets ? Probably yes
@@ -75,11 +78,14 @@ int main(int argc, char const *argv[]) {
 		}
 	}
 
+	LOG("[isd] sockets created");
+
 	// Launch cache routine
 	int err;
 	if (err = pthread_create(&cache_thread, NULL, cache_routine, (void*) receiver_id)) {
 		ERR("Unable to setup caching thread", err);
 	}
+	LOG("[isd] caching thread created");
 
 	// Launch send routine
 	send_routine();
@@ -92,6 +98,8 @@ int main(int argc, char const *argv[]) {
 }
 
 void send_routine() {
+	LOG("[isd-send] in routine");
+
 	int bytes;
 	char buf[IPRP_PACKET_BUFFER_SIZE];
 
@@ -107,14 +115,19 @@ void send_routine() {
 			// TODO Can this happen ? What if yes ?
 		}
 
+		LOG("[isd-send] received packet");
+
 		int err;
 		if (err = nfq_handle_packet(handle, buf, IPRP_PACKET_BUFFER_SIZE)) {
 			ERR("Error while handling packet", err);
 		}
+
+		LOG("[isd-send] packet handled");
 	}
 }
 
 void *cache_routine(void *arg) {
+	LOG("[isd-cache] in routine");
 	int receiver_id = (int) arg;
 	char base_path[IPRP_PATH_LENGTH];
 	snprintf(base_path, IPRP_PATH_LENGTH, "files/base_%x.iprp", receiver_id);
@@ -131,6 +144,8 @@ void *cache_routine(void *arg) {
 		pthread_mutex_lock(&base_mutex);
 		base = temp;
 		pthread_mutex_unlock(&base_mutex);
+
+		LOG("[isd-cache] peerbase cached");
 
 		// TODO Update sockets according to loaded peerbase (or not ?). For now not.
 

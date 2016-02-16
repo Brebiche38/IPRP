@@ -37,7 +37,6 @@ struct iprp_interface {
 };
 
 struct iprp_host {
-	uint32_t id;
 	size_t nb_ifaces;
 	iprp_iface_t ifaces[IPRP_MAX_IFACE];
 };

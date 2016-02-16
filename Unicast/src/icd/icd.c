@@ -73,6 +73,7 @@ int main(int argc, char const *argv[]) {
 	}
 
 	/* Phase 1: setup environment */
+	srand(time(NULL));
 
 	int err;
 
@@ -322,17 +323,50 @@ void* sender_routine(void *arg) {
 			LOG("[send] Receiver not found");
 			// 3. Else, perform IND matching and create peer-base entry, then send ack message (not in unicast)
 			int matching_inds;
+			printf("1\n");
 			if ((matching_inds = ind_match(&this, &msg.receiver)) != 0) {
 				// TODO create link
+			printf("2\n");
 				link = malloc(sizeof(iprp_sender_link_t));
+			printf("3\n");
 
 				link->dest_addr = addr;
 				link->src_port = msg.src_port;
 				link->dest_port = msg.dest_port;
+				link->receiver_id = (uint32_t) addr.s_addr;
+			printf("4\n");
+				link->queue_id = get_queue_number();
+			printf("5\n");
 
 				LOG("[send] IND matching successful. Inserting into peer base");
 				peerbase_insert(link, &msg.receiver, matching_inds);
-				// TODO Create sender deamon for new receiver
+				
+				// Create sender deamon
+				// TODO create NFqueue
+				pid_t pid = fork();
+				if (pid == -1) {
+					ERR("Unable to create sender deamon", errno);
+				} else if (!pid) {
+					printf("Forked on the child side\n");
+					// Child side
+					// Create NFqueue
+					char dest_addr[INET_ADDRSTRLEN];
+					inet_ntop(AF_INET, &link->dest_addr, dest_addr, INET_ADDRSTRLEN);
+					char shell[120];
+					snprintf(shell, 120, "iptables -t mangle -A POSTROUTING -p udp -d %s --dport %d --sport %d -j NFQUEUE --queue-num %d", dest_addr, link->dest_port, link->src_port, link->queue_id);
+					system(shell);
+					// Launch sender
+					char receiver_id[16];
+					sprintf(receiver_id, "%d", link->receiver_id);
+					char queue_id[16];
+					sprintf(queue_id, "%d", link->queue_id);
+					if (execl(IPRP_ISD_BINARY_LOC, "isd", queue_id, receiver_id, NULL) == -1) {
+						ERR("Unable to launch sender deamon", errno);
+					}
+				} else {
+					printf("Forked on the parent side\n");
+					link->isd_pid = pid;
+				}
 			}
 		}
 	}

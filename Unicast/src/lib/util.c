@@ -84,16 +84,16 @@ void list_init(list_t *list, void* value) {
 }
 
 void list_append(list_t *list, void* value) {
-	if (list->prev == NULL && list->next == NULL) {
+	if (list->elem == NULL) {
 		list->elem = value;
-		list->prev = list;
-		list->next = list;
 	} else {
 		list_t *new_elem = malloc(sizeof(list_t));
 		new_elem->elem = value;
-		new_elem->prev = list->prev;
-		new_elem->next = list;
-		list->prev->next = new_elem;		
-		list->prev = new_elem;
+		new_elem->prev = list;
+		new_elem->next = list->next;
+		if (list->next) {
+			list->next->prev = new_elem;
+		}
+		list->next = new_elem;		
 	}
 }

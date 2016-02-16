@@ -26,6 +26,7 @@
 extern iprp_host_t this;
 
 list_t* current_links; // sender_link_t
+// TODO mutex
 
 int sender_init() { // TODO remove arg with bootstrap
 	current_links = malloc(sizeof(list_t));
@@ -93,7 +94,7 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 	LOG("insert");
 	// 1. Create peer base
 	iprp_peerbase_t peerbase;
-	bzero(&peerbase, sizeof(iprp_peerbase_t));
+	memset(&peerbase, 0, sizeof(iprp_peerbase_t));
 
 	peerbase.link = *link;
 
@@ -119,22 +120,8 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 
 	// TODO 1. Create file for sender deamon
 	char path[IPRP_PATH_LENGTH];
-	snprintf(path, IPRP_PATH_LENGTH, "files/base_%x.iprp", receiver->id);
+	snprintf(path, IPRP_PATH_LENGTH, "files/base_%x.iprp", link->receiver_id);
 	peerbase_store(path, &peerbase);
-
-	// Launch sender deamon and GET PID
-	/* TODO enable
-	pid_t pid = fork();
-	if (pid == -1) {
-		ERR("Unable to create sender deamon", errno);
-	} else if (!pid) {
-		// Child side
-		char *args = "";
-		execl(IPRP_ISD_BINARY_LOC, "isd", args, NULL);
-	} else {
-		link->isd_pid = pid;
-	}
-	*/
 
 	// TODO 2. Insert in current links list
 	list_append(current_links, link);
@@ -322,7 +309,7 @@ int peerbase_load(const char *path, iprp_peerbase_t *base) {
 int peerbase_cleanup(time_t expiration) {
 	// TODO lock
 	list_t *iterator = current_links;
-	while(iterator) {
+	while(iterator && iterator->elem) {
 		iprp_sender_link_t *link = (iprp_sender_link_t *) iterator->elem;
 		if (link->last_cap < expiration) {
 			// Delete corresponding connection
@@ -331,4 +318,27 @@ int peerbase_cleanup(time_t expiration) {
 		}
 	}
 	return 0;
+}
+
+uint16_t get_queue_number() {
+	bool ok = false;
+	uint16_t num;
+
+	while(!ok) {
+		num = (uint16_t) rand();
+
+		list_t *iterator = current_links;
+		while(iterator && iterator->elem) {
+			iprp_sender_link_t *link = iterator->elem;
+			if (link->queue_id == num) {
+				ok = false;
+				break;
+			}
+			iterator = iterator->next;
+		}
+
+		ok = true;
+	}
+
+	return num;
 }
