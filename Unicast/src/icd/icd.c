@@ -5,6 +5,8 @@
  * \version alpha
  */
 
+#define IPRP_ICD
+
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -17,12 +19,9 @@
 #include <stdbool.h>
 
 #include "../../inc/icd.h"
-#include "../../inc/types.h"
+#include "../../inc/global.h"
 #include "../../inc/sender.h"
 #include "../../inc/receiver.h"
-#include "../../inc/config.h"
-#include "../../inc/log.h"
-#include "../../inc/util.h"
 
 iprp_host_t this; /** Information about the current machine */
 int ctl_socket;
@@ -323,20 +322,14 @@ void* sender_routine(void *arg) {
 			LOG("[send] Receiver not found");
 			// 3. Else, perform IND matching and create peer-base entry, then send ack message (not in unicast)
 			int matching_inds;
-			printf("1\n");
 			if ((matching_inds = ind_match(&this, &msg.receiver)) != 0) {
-				// TODO create link
-			printf("2\n");
 				link = malloc(sizeof(iprp_sender_link_t));
-			printf("3\n");
 
 				link->dest_addr = addr;
 				link->src_port = msg.src_port;
 				link->dest_port = msg.dest_port;
 				link->receiver_id = (uint32_t) addr.s_addr;
-			printf("4\n");
 				link->queue_id = get_queue_number();
-			printf("5\n");
 
 				LOG("[send] IND matching successful. Inserting into peer base");
 				peerbase_insert(link, &msg.receiver, matching_inds);

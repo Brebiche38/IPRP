@@ -11,10 +11,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../../inc/global.h"
 #include "../../inc/receiver.h"
-#include "../../inc/types.h"
-#include "../../inc/error.h"
-#include "../../inc/log.h"
 
 FILE *as_read = NULL; // Only circles around the list
 FILE *as_read_some = NULL; // Random access

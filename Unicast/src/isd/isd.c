@@ -1,3 +1,5 @@
+#define IPRP_ISD
+
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -10,13 +12,8 @@
 
 
 #include "../../inc/isd.h"
-#include "../../inc/types.h"
+#include "../../inc/global.h"
 #include "../../inc/sender.h"
-#include "../../inc/error.h"
-#include "../../inc/log.h"
-
-// TODO find way to not need this
-iprp_host_t this;
 
 uint16_t reboot_counter;
 uint32_t seq_nb;

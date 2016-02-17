@@ -8,7 +8,7 @@
 #ifndef __IPRP_RECEIVER_
 #define __IPRP_RECEIVER_
 
-#include "types.h"
+#include "global.h"
 
 #define IPRP_ACTIVESENDERS_FILE "files/activesenders.iprp"
 #define IPRP_ACTIVESENDERS_LINE_LENGTH 80

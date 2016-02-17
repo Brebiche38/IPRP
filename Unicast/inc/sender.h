@@ -13,7 +13,7 @@
 #include <time.h>
 #include <stdbool.h>
 
-#include "types.h"
+#include "global.h"
 
 #define IPRP_PEERBASE_MAX_SIZE (IPRP_PEERBASE_1STLINE_LENGTH + IPRP_MAX_IFACE * IPRP_PEERBASE_LINE_LENGTH)
 #define IPRP_PEERBASE_1STLINE_LENGTH 80
@@ -46,18 +46,9 @@ struct iprp_peerbase {
 	iprp_path_t paths[IPRP_MAX_INDS];
 };
 
-/* Library functions */
-int sender_init();
-iprp_sender_link_t *peerbase_query(iprp_capmsg_t *cap, struct in_addr *dest_addr);
-int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds);
-int peerbase_update(iprp_sender_link_t *link);
-
 /* Disk functions */
 int peerbase_store(const char* path, iprp_peerbase_t *base);
 int peerbase_load(const char* path, iprp_peerbase_t *base);
-
-/* Utility functions */
-uint16_t get_queue_number();
 
 /*
  Peer base file format
