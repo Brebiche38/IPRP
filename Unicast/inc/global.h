@@ -88,8 +88,8 @@ typedef struct list_elem list_elem_t;
 
 struct list_elem {
 	void *elem;
-	list_t *prev;
-	list_t *next;
+	list_elem_t *prev;
+	list_elem_t *next;
 };
 
 struct list {

@@ -16,7 +16,7 @@
 #include "../../inc/sender.h"
 
 uint16_t reboot_counter;
-uint32_t seq_nb;
+uint32_t seq_nb = 1;
 
 struct nfq_handle *handle;
 struct nfq_q_handle *queue;
@@ -152,7 +152,6 @@ void *cache_routine(void *arg) {
 
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
 	// Don't give a damn about message
-	// TODO do
 
 	// 1. Get header and payload
 	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr (packet); // TODO no error check in IPv6 version
@@ -216,7 +215,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		}
 	}
 	// Increase seq nb
-	seq_nb = (seq_nb + 1) % UINT32_MAX;
+	seq_nb = (seq_nb == UINT32_MAX) ? 1 : seq_nb + 1;
 
 	if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), 0, bytes, buf) == -1) { // TODO NF_DROP
 		ERR("Unable to set verdict", IPRP_ERR_NFQUEUE);
