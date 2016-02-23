@@ -5,6 +5,7 @@
 #include "receiver.h"
 
 #define IPRP_NFQUEUE_MAX_LENGTH 100
+#define IPRP_IRD_TCACHE 3
 
 void receive_routine();
 void *cleanup_routine(void* arg);

@@ -23,8 +23,10 @@
 #include "../../inc/sender.h"
 #include "../../inc/receiver.h"
 
-iprp_host_t this; /** Information about the current machine */
+volatile iprp_host_t this; /** Information about the current machine */
 int ctl_socket;
+
+pid_t ird_pid;
 
 /**
 Control daemon entry point
@@ -42,8 +44,10 @@ sender and receiver threads and executes the control routine itself.
 */
 int main(int argc, char const *argv[]) {
 	/* Phase 0: manual setup */
+	// TODO delete when monitoring daemon is operational
 
 	if (argc != 5) return -1;
+	this.nb_ifaces = 2;
 	// Create this
 	this.ifaces[0].ind = 0x1;
 	inet_pton(AF_INET, argv[1], &this.ifaces[0].addr);
@@ -211,6 +215,31 @@ control routine and treats them as expected.
 void* receiver_routine(void *arg) {
 	int recv_pipe_read = (int) arg;
 
+	// Launch receiver and monitoring deamons
+	pid_t pid = fork();
+	if (pid == -1) {
+		ERR("Unable to create receiver deamon", errno);
+	} else if (!pid) {
+		// Child side
+		// Create NFqueue
+		int queue_id = get_queue_number();
+		char shell[100];
+		snprintf(shell, 100, "sudo iptables -t mangle -A PREROUTING -p udp --dport 1001 -j NFQUEUE --queue-num %d", queue_id);
+		if (system(shell) == -1) {
+			ERR("Unable to create nfqueue for IRD", errno);
+		}
+		printf("Queue %d created (IRD)\n", queue_id);
+		// Launch receiver
+		char queue_id_str[16];
+		sprintf(queue_id_str, "%d", queue_id);
+		if (execl(IPRP_IRD_BINARY_LOC, "ird", queue_id_str, NULL) == -1) {
+			ERR("Unable to launch receiver deamon", errno);
+		}
+	} else {
+		// Parent side
+		ird_pid = pid;
+	}
+
 	int err;
 
 	// Setup receiver logic
@@ -287,6 +316,7 @@ The sender routine receives CAP messages from the control routine and treats the
 */
 // TODO bypass pipe (only 1 type) ??
 void* sender_routine(void *arg) {
+	LOG("[send] in routine");
 	int send_pipe_read = (int) arg;
 
 	// Setup sender logic
@@ -294,9 +324,8 @@ void* sender_routine(void *arg) {
 	if ((err = sender_init())) {
 		ERR("Unable to initialize peer-base list", err);
 	}
-	LOG("[main] Peer base list initialized");
+	LOG("[send] Peer base list initialized");
 
-	LOG("[send] in routine");
 	while(true) {
 		iprp_capmsg_t msg;
 		struct in_addr addr;
@@ -308,6 +337,7 @@ void* sender_routine(void *arg) {
 			ERR("Error while reading from sender pipe", bytes);
 		}
 		LOG("[send] Received message from pipe");
+		printf("%d\n", msg.receiver.nb_ifaces);
 
 		// Act on received cap
 
@@ -332,22 +362,25 @@ void* sender_routine(void *arg) {
 				link->queue_id = get_queue_number();
 
 				LOG("[send] IND matching successful. Inserting into peer base");
-				peerbase_insert(link, &msg.receiver, matching_inds);
+				if (err = peerbase_insert(link, &msg.receiver, matching_inds)) {
+					ERR("Unable to insert peerbase", err);
+				}
 				
 				// Create sender deamon
-				// TODO create NFqueue
 				pid_t pid = fork();
 				if (pid == -1) {
 					ERR("Unable to create sender deamon", errno);
 				} else if (!pid) {
-					printf("Forked on the child side\n");
 					// Child side
 					// Create NFqueue
 					char dest_addr[INET_ADDRSTRLEN];
 					inet_ntop(AF_INET, &link->dest_addr, dest_addr, INET_ADDRSTRLEN);
 					char shell[120];
 					snprintf(shell, 120, "iptables -t mangle -A POSTROUTING -p udp -d %s --dport %d --sport %d -j NFQUEUE --queue-num %d", dest_addr, link->dest_port, link->src_port, link->queue_id);
-					system(shell);
+					if (system(shell) == -1) {
+						ERR("Unable to create nfqueue for ISD", errno);
+					}
+					printf("Queue %d created (ISD)\n", link->queue_id);
 					// Launch sender
 					char receiver_id[16];
 					sprintf(receiver_id, "%d", link->receiver_id);
@@ -357,7 +390,6 @@ void* sender_routine(void *arg) {
 						ERR("Unable to launch sender deamon", errno);
 					}
 				} else {
-					printf("Forked on the parent side\n");
 					link->isd_pid = pid;
 				}
 			}

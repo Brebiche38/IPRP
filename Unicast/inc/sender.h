@@ -49,6 +49,7 @@ struct iprp_peerbase {
 /* Disk functions */
 int peerbase_store(const char* path, iprp_peerbase_t *base);
 int peerbase_load(const char* path, iprp_peerbase_t *base);
+void peerbase_print(iprp_peerbase_t *base);
 
 /*
  Peer base file format

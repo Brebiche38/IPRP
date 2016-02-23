@@ -2,13 +2,18 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <sched.h>
 #include <stdlib.h>
 #include <stdint.h> // Warning: include before netfilter queue
+#include <netinet/in.h>
+#include <linux/types.h>
+#include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <unistd.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
 #include <string.h>
+#include <stdbool.h>
 
 
 #include "../../inc/isd.h"
@@ -23,6 +28,8 @@ struct nfq_q_handle *queue;
 int queue_fd;
 
 int sockets[IPRP_MAX_IFACE];
+
+volatile bool base_loaded = false;
 iprp_peerbase_t base;
 pthread_mutex_t base_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -52,8 +59,10 @@ int main(int argc, char const *argv[]) {
 		ERR("Unable to bind IP protocol to queue handle", IPRP_ERR_NFQUEUE);
 	}
 
+	errno = 0;
 	queue = nfq_create_queue(handle, queue_id, handle_packet, NULL);
 	if (!queue) {
+		printf("%d\n", errno);
 		ERR("Unable to create queue", IPRP_ERR_NFQUEUE);
 	}
 	if (nfq_set_queue_maxlen(queue, IPRP_NFQUEUE_MAX_LENGTH) == -1) {
@@ -83,6 +92,11 @@ int main(int argc, char const *argv[]) {
 		ERR("Unable to setup caching thread", err);
 	}
 	LOG("[isd] caching thread created");
+
+	while(!base_loaded) {
+		sched_yield();
+	}
+	LOG("[isd] base loaded");
 
 	// Launch send routine
 	send_routine();
@@ -115,7 +129,7 @@ void send_routine() {
 		LOG("[isd-send] received packet");
 
 		int err;
-		if (err = nfq_handle_packet(handle, buf, IPRP_PACKET_BUFFER_SIZE)) {
+		if ((err = nfq_handle_packet(handle, buf, IPRP_PACKET_BUFFER_SIZE))) {
 			ERR("Error while handling packet", err);
 		}
 
@@ -137,10 +151,14 @@ void *cache_routine(void *arg) {
 			ERR("Unable to load peerbase", err);
 		}
 
+		peerbase_print(&temp);
+
 		// update with locks
 		pthread_mutex_lock(&base_mutex);
 		base = temp;
 		pthread_mutex_unlock(&base_mutex);
+
+		base_loaded = true;
 
 		LOG("[isd-cache] peerbase cached");
 
@@ -159,6 +177,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		// TODO just let it go?
 		ERR("Unable to retrieve header form received packet", IPRP_ERR_NFQUEUE);
 	}
+	LOG("[callback] got header");
 
 	unsigned char *buf;
 	int bytes;
@@ -166,6 +185,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		// TODO just let it go ?
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);
 	}
+	LOG("[callback] got payload");
 
 	// Get payload headers
 	struct iphdr *ip_header = (struct iphdr *) buf;
@@ -192,9 +212,11 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	header->seq_nb = seq_nb;
 	header->dest_port = udp_header->dest;
 
+	LOG("[callback] got to interesting part");
 	// Duplicate packets
 	int socket_id = 0;
 	for (int i = 0; i < IPRP_MAX_INDS; ++i) {
+		printf("Got to IND %x\n", i);
 		if (base.paths[i].active) {
 			header->ind = base.paths[i].iface.ind;
 			// TODO compute MAC
@@ -204,10 +226,12 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 			struct sockaddr_in recv_addr;
 			recv_addr.sin_family = AF_INET;
 			recv_addr.sin_port = htons(IPRP_DATA_PORT);
-			recv_addr.sin_addr = base.paths[i].iface.addr;
+			recv_addr.sin_addr = base.paths[i].dest_addr;
 			memset(&recv_addr.sin_zero, 0, sizeof(recv_addr.sin_zero));
 
-			if (sendto(sockets[socket_id], new_packet, sizeof(new_packet), 0, (struct sockaddr *) &recv_addr, sizeof(recv_addr)) == -1) {
+			printf("Sending packet on IND 0x%x\n", i);
+
+			if (sendto(sockets[socket_id], new_packet, bytes - sizeof(struct iphdr) - sizeof(struct udphdr) + sizeof(iprp_header_t), 0, (struct sockaddr *) &recv_addr, sizeof(recv_addr)) == -1) {
 				ERR("Unable to send packet", errno);
 			}
 
@@ -216,10 +240,11 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	}
 	// Increase seq nb
 	seq_nb = (seq_nb == UINT32_MAX) ? 1 : seq_nb + 1;
-
-	if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), 0, bytes, buf) == -1) { // TODO NF_DROP
+	LOG("[callback] reached end");
+	if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_DROP, bytes, buf) == -1) { // TODO NF_DROP
 		ERR("Unable to set verdict", IPRP_ERR_NFQUEUE);
 	}
+	LOG("[callback] really reached end");
 	return 0;
 }
 

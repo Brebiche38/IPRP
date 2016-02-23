@@ -19,6 +19,7 @@
 #define IPRP_PACKET_BUFFER_SIZE 4096
 
 #define IPRP_ISD_BINARY_LOC "bin/isd"
+#define IPRP_IRD_BINARY_LOC "bin/ird"
 
 // TODO replace all bzero with memset
 // Convention: all error handling is done in icd/imd/isd/ird files, library files return error codes

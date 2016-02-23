@@ -7,16 +7,13 @@
 
 extern iprp_host_t this;
 
-list_t* current_links; // sender_link_t
+list_t current_links; // sender_link_t
 // TODO mutex
 
-int sender_init() { // TODO remove arg with bootstrap
-	current_links = malloc(sizeof(list_t));
-	if (current_links == NULL) {
-		ERR("Unable to allocate", ENOMEM);
-	}
+static volatile uint16_t queue_number = 0;
 
-	list_init(current_links);
+int sender_init() { // TODO remove arg with bootstrap
+	list_init(&current_links);
 
 	return 0;
 }
@@ -24,7 +21,7 @@ int sender_init() { // TODO remove arg with bootstrap
 iprp_sender_link_t *peerbase_query(iprp_capmsg_t *cap, struct in_addr *dest_addr) {
 	if (!cap || !dest_addr) return NULL;
 
-	list_elem_t *iterator = current_links->head;
+	list_elem_t *iterator = current_links.head;
 
 	while(iterator) {
 		iprp_sender_link_t *link = (iprp_sender_link_t *) iterator->elem;
@@ -44,6 +41,8 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 
 	peerbase.link = *link;
 
+	printf("receiver interfaces: %d\n", receiver->nb_ifaces);
+
 	for (int i = 0; i < receiver->nb_ifaces; ++i) {
 		int ind = receiver->ifaces[i].ind;
 		if (peerbase.paths[ind].active) {
@@ -51,11 +50,15 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 		}
 
 		if (inds & (1 << ind)) {
+			printf("IND match for %x\n", ind);
 			iprp_iface_t *iface = get_iface_from_ind(&this, ind);
+
 			if (iface) {
 				peerbase.paths[ind].active = true;
 				peerbase.paths[ind].iface = *iface;
 				peerbase.paths[ind].dest_addr = receiver->ifaces[i].addr;
+			} else {
+				printf("No IND for %x\n", ind);
 			}
 		}
 	}
@@ -68,7 +71,7 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 	peerbase_store(path, &peerbase);
 
 	// TODO 2. Insert in current links list
-	list_append(current_links, link);
+	list_append(&current_links, link);
 
 	return 0;
 }
@@ -95,7 +98,7 @@ int peerbase_update(iprp_sender_link_t *link) {
 
 int peerbase_cleanup(time_t expiration) {
 	// TODO lock
-	list_elem_t *iterator = current_links->head;
+	list_elem_t *iterator = current_links.head;
 	while(iterator) {
 		iprp_sender_link_t *link = (iprp_sender_link_t *) iterator->elem;
 		if (link->last_cap < expiration) {
@@ -111,10 +114,11 @@ uint16_t get_queue_number() {
 	bool ok = false;
 	uint16_t num;
 
+	srand(time(0));
 	while(!ok) {
-		num = (uint16_t) rand();
-
-		list_elem_t *iterator = current_links->head;
+		num = (uint16_t) (rand() % 1024);
+		printf("num: %u\n", num);
+		list_elem_t *iterator = current_links.head;
 		while(iterator) {
 			iprp_sender_link_t *link = iterator->elem;
 			if (link->queue_id == num) {
