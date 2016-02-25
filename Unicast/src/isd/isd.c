@@ -100,7 +100,7 @@ int main(int argc, char const *argv[]) {
 
 	// Launch send routine
 	send_routine();
-
+	
 	// TODO shouldn't get here ?
 
 	cleanup();
