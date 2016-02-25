@@ -174,7 +174,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		packet_link = malloc(sizeof(iprp_receiver_link_t));
 
 		memcpy(&packet_link->src_addr, &iprp_header->snsid, sizeof(struct in_addr));
-		memcpy(&packet_link->src_addr, &iprp_header->snsid[16], sizeof(uint16_t));
+		memcpy(&packet_link->src_port, &iprp_header->snsid[16], sizeof(uint16_t));
 		memcpy(&packet_link->snsid, &iprp_header->snsid, 20);
 
 		for (int i = 0; i < IPRP_DD_MAX_LOST_PACKETS; ++i) {
@@ -202,10 +202,10 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		printf("%p %p %d\n", iprp_header,
 			((char*) iprp_header) + sizeof(iprp_header_t),
 			bytes - sizeof(struct iphdr) - sizeof(struct udphdr) - sizeof(iprp_header_t));
-		memmove(iprp_header,
+		/*memmove(iprp_header,
 			((char*) iprp_header) + sizeof(iprp_header_t),
 			bytes - sizeof(struct iphdr) - sizeof(struct udphdr) - sizeof(iprp_header_t));
-
+*/
 		printf("1\n");
 		
 		// Compute IP ckecksum
@@ -214,14 +214,18 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 		printf("2\n");
 
+		udp_header->dest = iprp_header->dest_port;
+
 		// Compute UDP checksum (not mandatory)
 		udp_header->check = 0;
 		//udp_header->check = udp_checksum((uint16_t *) udp_header, bytes - sizeof(struct iphdr), ip_header->saddr, ip_header->daddr);
 
 		LOG("[ird-handle] Packet ready, setting verdict...");
 
+		printf("%d\n", ntohs(udp_header->dest));
+
 		// Forward packet to application
-		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_ACCEPT, bytes - sizeof(iprp_header_t), buf) == -1) {
+		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_ACCEPT, bytes, buf) == -1) { // TODO  - sizeof(iprp_header_t)
 			ERR("Unable to set verdict to NF_ACCEPT", IPRP_ERR_NFQUEUE);
 		}
 	} else {
@@ -287,7 +291,7 @@ uint16_t ip_checksum(struct iphdr *header, size_t len) {
 			checksum = (checksum & 0xFFFF) + (checksum >> 16);
 		}
 	}
-
+	
 	while (checksum >> 16) {
 		checksum = (checksum & 0xFFFF) + (checksum >> 16);
 	}

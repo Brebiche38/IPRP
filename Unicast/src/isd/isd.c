@@ -126,10 +126,12 @@ void send_routine() {
 			// TODO Can this happen ? What if yes ?
 		}
 
+		printf("%d\n", bytes);
+
 		LOG("[isd-send] received packet");
 
 		int err;
-		if ((err = nfq_handle_packet(handle, buf, IPRP_PACKET_BUFFER_SIZE))) {
+		if ((err = nfq_handle_packet(handle, buf, IPRP_PACKET_BUFFER_SIZE)) == -1) {
 			ERR("Error while handling packet", err);
 		}
 
@@ -179,6 +181,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	}
 	LOG("[callback] got header");
 
+	printf("%d\n", sizeof(struct nfqnl_msg_packet_hdr));
+
 	unsigned char *buf;
 	int bytes;
 	if ((bytes = nfq_get_payload(packet, &buf)) == -1) {
@@ -186,6 +190,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);
 	}
 	LOG("[callback] got payload");
+	printf("%d\n", bytes);
 
 	// Get payload headers
 	struct iphdr *ip_header = (struct iphdr *) buf;
@@ -201,6 +206,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	iprp_header_t *header = (iprp_header_t *) new_packet;
 
 	header->version = IPRP_VERSION;
+
+	printf("src %x dest %x\n", ip_header->saddr, ip_header->daddr);
 
 	// TODO compute snsid from peer base ?
 	for (int i = 0; i < 4; ++i) {
@@ -241,9 +248,11 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	// Increase seq nb
 	seq_nb = (seq_nb == UINT32_MAX) ? 1 : seq_nb + 1;
 	LOG("[callback] reached end");
-	if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_DROP, bytes, buf) == -1) { // TODO NF_DROP
+	int err;
+	if ((err = nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_DROP, bytes, buf)) == -1) { // TODO NF_DROP
 		ERR("Unable to set verdict", IPRP_ERR_NFQUEUE);
 	}
+	printf("%d\n", err);
 	LOG("[callback] really reached end");
 	return 0;
 }
