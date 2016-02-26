@@ -35,7 +35,6 @@ int ind_match(iprp_host_t *sender, iprp_host_t *receiver) {
 
 	for (int i = 0; i < sender->nb_ifaces; ++i) {
 		if (sender->ifaces[i].ind == receiver->ifaces[i].ind) {
-			printf("%x matching\n", sender->ifaces[i].ind);
 			matching_inds |= (1 << sender->ifaces[i].ind);
 		}
 	}

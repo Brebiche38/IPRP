@@ -228,13 +228,14 @@ void* receiver_routine(void *arg) {
 		if (system(shell) == -1) {
 			ERR("Unable to create nfqueue for IRD", errno);
 		}
-		printf("Queue %d created (IRD)\n", queue_id);
 		// Launch receiver
 		char queue_id_str[16];
 		sprintf(queue_id_str, "%d", queue_id);
 		if (execl(IPRP_IRD_BINARY_LOC, "ird", queue_id_str, NULL) == -1) {
 			ERR("Unable to launch receiver deamon", errno);
 		}
+
+		LOG("[icd] IRD created");
 	} else {
 		// Parent side
 		ird_pid = pid;
@@ -337,7 +338,6 @@ void* sender_routine(void *arg) {
 			ERR("Error while reading from sender pipe", bytes);
 		}
 		LOG("[send] Received message from pipe");
-		printf("%d\n", msg.receiver.nb_ifaces);
 
 		// Act on received cap
 
@@ -380,7 +380,6 @@ void* sender_routine(void *arg) {
 					if (system(shell) == -1) {
 						ERR("Unable to create nfqueue for ISD", errno);
 					}
-					printf("Queue %d created (ISD)\n", link->queue_id);
 					// Launch sender
 					char receiver_id[16];
 					sprintf(receiver_id, "%d", link->receiver_id);
@@ -389,6 +388,7 @@ void* sender_routine(void *arg) {
 					if (execl(IPRP_ISD_BINARY_LOC, "isd", queue_id, receiver_id, NULL) == -1) {
 						ERR("Unable to launch sender deamon", errno);
 					}
+					LOG("[icd] ISD created");
 				} else {
 					link->isd_pid = pid;
 				}

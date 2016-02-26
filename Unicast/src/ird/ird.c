@@ -136,7 +136,6 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);
 	}
 	LOG("[ird-handle] Got payload");
-	printf("Payload is %d bytes\n", bytes);
 
 	// Get payload headers
 	struct iphdr *ip_header = (struct iphdr *) buf; // TODO assert IP header length = 20 bytes
@@ -199,22 +198,19 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		// Transfer packet to application
 		// Overwrite IPRP header with payload
 
-		printf("%p %p %d\n", iprp_header,
+		uint16_t dest_port = ntohs(iprp_header->dest_port);
+
+		memmove(iprp_header,
 			((char*) iprp_header) + sizeof(iprp_header_t),
 			bytes - sizeof(struct iphdr) - sizeof(struct udphdr) - sizeof(iprp_header_t));
-		/*memmove(iprp_header,
-			((char*) iprp_header) + sizeof(iprp_header_t),
-			bytes - sizeof(struct iphdr) - sizeof(struct udphdr) - sizeof(iprp_header_t));
-*/
-		printf("1\n");
 		
 		// Compute IP ckecksum
+		ip_header->tot_len = htons(bytes - sizeof(iprp_header_t));
 		ip_header->check = 0;
 		ip_header->check = ip_checksum(ip_header, sizeof(struct iphdr));
 
-		printf("2\n");
-
-		udp_header->dest = iprp_header->dest_port;
+		udp_header->dest = htons(dest_port);
+		udp_header->len = htons(bytes - sizeof(struct iphdr) - sizeof(iprp_header_t));
 
 		// Compute UDP checksum (not mandatory)
 		udp_header->check = 0;
@@ -222,10 +218,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 		LOG("[ird-handle] Packet ready, setting verdict...");
 
-		printf("%d\n", ntohs(udp_header->dest));
-
 		// Forward packet to application
-		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_ACCEPT, bytes, buf) == -1) { // TODO  - sizeof(iprp_header_t)
+		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_ACCEPT, bytes - sizeof(iprp_header_t), buf) == -1) { // TODO  - sizeof(iprp_header_t)
 			ERR("Unable to set verdict to NF_ACCEPT", IPRP_ERR_NFQUEUE);
 		}
 	} else {
@@ -235,6 +229,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 			ERR("Unable to set verdict to NF_DROP", IPRP_ERR_NFQUEUE);
 		}
 	}
+
+	return 0;
 }
 
 bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link) {

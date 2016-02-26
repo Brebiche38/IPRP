@@ -41,8 +41,6 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 
 	peerbase.link = *link;
 
-	printf("receiver interfaces: %d\n", receiver->nb_ifaces);
-
 	for (int i = 0; i < receiver->nb_ifaces; ++i) {
 		int ind = receiver->ifaces[i].ind;
 		if (peerbase.paths[ind].active) {
@@ -50,15 +48,12 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 		}
 
 		if (inds & (1 << ind)) {
-			printf("IND match for %x\n", ind);
 			iprp_iface_t *iface = get_iface_from_ind(&this, ind);
 
 			if (iface) {
 				peerbase.paths[ind].active = true;
 				peerbase.paths[ind].iface = *iface;
 				peerbase.paths[ind].dest_addr = receiver->ifaces[i].addr;
-			} else {
-				printf("No IND for %x\n", ind);
 			}
 		}
 	}
@@ -117,7 +112,6 @@ uint16_t get_queue_number() {
 	srand(time(0));
 	while(!ok) {
 		num = (uint16_t) (rand() % 1024);
-		printf("num: %u\n", num);
 		list_elem_t *iterator = current_links.head;
 		while(iterator) {
 			iprp_sender_link_t *link = iterator->elem;

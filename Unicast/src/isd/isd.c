@@ -62,7 +62,6 @@ int main(int argc, char const *argv[]) {
 	errno = 0;
 	queue = nfq_create_queue(handle, queue_id, handle_packet, NULL);
 	if (!queue) {
-		printf("%d\n", errno);
 		ERR("Unable to create queue", IPRP_ERR_NFQUEUE);
 	}
 	if (nfq_set_queue_maxlen(queue, IPRP_NFQUEUE_MAX_LENGTH) == -1) {
@@ -126,8 +125,6 @@ void send_routine() {
 			// TODO Can this happen ? What if yes ?
 		}
 
-		printf("%d\n", bytes);
-
 		LOG("[isd-send] received packet");
 
 		int err;
@@ -152,8 +149,6 @@ void *cache_routine(void *arg) {
 		if (err = peerbase_load(base_path, &temp)) {
 			ERR("Unable to load peerbase", err);
 		}
-
-		peerbase_print(&temp);
 
 		// update with locks
 		pthread_mutex_lock(&base_mutex);
@@ -181,8 +176,6 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	}
 	LOG("[callback] got header");
 
-	printf("%d\n", sizeof(struct nfqnl_msg_packet_hdr));
-
 	unsigned char *buf;
 	int bytes;
 	if ((bytes = nfq_get_payload(packet, &buf)) == -1) {
@@ -190,7 +183,6 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);
 	}
 	LOG("[callback] got payload");
-	printf("%d\n", bytes);
 
 	// Get payload headers
 	struct iphdr *ip_header = (struct iphdr *) buf;
@@ -207,8 +199,6 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 	header->version = IPRP_VERSION;
 
-	printf("src %x dest %x\n", ip_header->saddr, ip_header->daddr);
-
 	// TODO compute snsid from peer base ?
 	for (int i = 0; i < 4; ++i) {
 		memcpy(&header->snsid[i * 4], &ip_header->saddr, 4);
@@ -223,7 +213,6 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	// Duplicate packets
 	int socket_id = 0;
 	for (int i = 0; i < IPRP_MAX_INDS; ++i) {
-		printf("Got to IND %x\n", i);
 		if (base.paths[i].active) {
 			header->ind = base.paths[i].iface.ind;
 			// TODO compute MAC
@@ -235,8 +224,6 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 			recv_addr.sin_port = htons(IPRP_DATA_PORT);
 			recv_addr.sin_addr = base.paths[i].dest_addr;
 			memset(&recv_addr.sin_zero, 0, sizeof(recv_addr.sin_zero));
-
-			printf("Sending packet on IND 0x%x\n", i);
 
 			if (sendto(sockets[socket_id], new_packet, bytes - sizeof(struct iphdr) - sizeof(struct udphdr) + sizeof(iprp_header_t), 0, (struct sockaddr *) &recv_addr, sizeof(recv_addr)) == -1) {
 				ERR("Unable to send packet", errno);
@@ -252,7 +239,6 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	if ((err = nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_DROP, bytes, buf)) == -1) { // TODO NF_DROP
 		ERR("Unable to set verdict", IPRP_ERR_NFQUEUE);
 	}
-	printf("%d\n", err);
 	LOG("[callback] really reached end");
 	return 0;
 }

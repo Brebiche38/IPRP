@@ -25,7 +25,6 @@ int peerbase_store(const char* path, iprp_peerbase_t *base) {
 
 	// Save file
 	FILE* writer = fopen(path, "w");
-	printf("%s\n", path);
 	if (!writer) {
 		ERR("Unable to write to peerbase file", errno);
 	}
@@ -44,7 +43,6 @@ int peerbase_load(const char *path, iprp_peerbase_t *base) {
 
 	FILE* reader = fopen(path, "r");
 	if (!reader) {
-		printf("%s\n", path);
 		ERR("Unable to read peerbase file", errno);
 	}
 
