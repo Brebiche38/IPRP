@@ -156,7 +156,15 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 	while(iterator != NULL) {
 		iprp_receiver_link_t *link = (iprp_receiver_link_t *) iterator->elem;
-		if (link->snsid == iprp_header->snsid) {
+		bool same = true;
+
+		for (int i = 0; i < 20; ++i) {
+			if (link->snsid[i] != iprp_header->snsid[i]) {
+				same = false;
+				break;
+			}
+		}
+		if (same) {
 			packet_link = link;
 			break;
 		}
@@ -174,6 +182,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 		memcpy(&packet_link->src_addr, &iprp_header->snsid, sizeof(struct in_addr));
 		memcpy(&packet_link->src_port, &iprp_header->snsid[16], sizeof(uint16_t));
+		packet_link->src_port = ntohs(packet_link->src_port);
 		memcpy(&packet_link->snsid, &iprp_header->snsid, 20);
 
 		for (int i = 0; i < IPRP_DD_MAX_LOST_PACKETS; ++i) {

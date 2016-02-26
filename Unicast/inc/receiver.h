@@ -27,7 +27,7 @@ struct iprp_receiver_link {
 	// Info (fixed) vars
 	struct in_addr src_addr;
 	uint16_t src_port;
-	char snsid[20];
+	unsigned char snsid[20];
 	// State (variable) vars
 	uint32_t list_sn[IPRP_DD_MAX_LOST_PACKETS];
 	uint32_t high_sn;

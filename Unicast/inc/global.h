@@ -71,7 +71,7 @@ struct iprp_ctlmsg {
 
 struct iprp_header {
 	uint8_t version;
-	char snsid[20]; // TODO check if size possible
+	unsigned char snsid[20]; // TODO check if size possible
 	uint32_t seq_nb;
 	uint16_t dest_port;
 	iprp_ind_t ind;
