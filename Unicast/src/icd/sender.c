@@ -10,7 +10,7 @@ extern iprp_host_t this;
 list_t current_links; // sender_link_t
 // TODO mutex
 
-static volatile uint16_t queue_number = 0;
+uint16_t queue_number = 0;
 
 int sender_init() { // TODO remove arg with bootstrap
 	list_init(&current_links);
@@ -18,14 +18,14 @@ int sender_init() { // TODO remove arg with bootstrap
 	return 0;
 }
 
-iprp_sender_link_t *peerbase_query(iprp_capmsg_t *cap, struct in_addr *dest_addr) {
-	if (!cap || !dest_addr) return NULL;
+iprp_sender_link_t *peerbase_query(struct in_addr *dest_addr, uint16_t src_port, uint16_t dest_port) {
+	if (!dest_addr) return NULL;
 
 	list_elem_t *iterator = current_links.head;
 
 	while(iterator) {
 		iprp_sender_link_t *link = (iprp_sender_link_t *) iterator->elem;
-		if (link->dest_addr.s_addr == dest_addr->s_addr && link->src_port == cap->src_port && link->dest_port == cap->src_port) {
+		if (link->dest_addr.s_addr == dest_addr->s_addr && link->src_port == src_port && link->dest_port == dest_port) {
 			return link;
 		}
 		iterator = iterator->next;

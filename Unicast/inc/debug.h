@@ -30,7 +30,7 @@ typedef enum {
 
 #define DEBUG_LEVEL DEBUG_VERBOSE
 
-#define ERR(msg, var)	perror(("Error: %s\n", msg)); //exit(EXIT_FAILURE)
+#define ERR(msg, var)	printf("Error: %s (%d)\n", msg, var); exit(EXIT_FAILURE)
 #define LOG(msg)		if (DEBUG_LEVEL == DEBUG_VERBOSE) printf("%s\n", msg)
 
 #endif /* __IPRP_DEBUG_ */

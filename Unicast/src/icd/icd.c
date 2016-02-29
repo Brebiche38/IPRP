@@ -5,8 +5,6 @@
  * \version alpha
  */
 
-#define IPRP_ICD
-
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -17,16 +15,28 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "../../inc/icd.h"
 #include "../../inc/global.h"
 #include "../../inc/sender.h"
 #include "../../inc/receiver.h"
 
-volatile iprp_host_t this; /** Information about the current machine */
-int ctl_socket;
+/* Thread descriptors */
+pthread_t control_thread;
+pthread_t receiver_thread;
+pthread_t sender_thread;
+pthread_t sendcap_thread;
 
-pid_t ird_pid;
+/* Global variables */
+iprp_host_t this; /** Information about the current machine */
+
+pid_t ird_pid; /** PID of the receiver deamon */
+
+int control_socket; /** Socket used to send control messages */
+int receiver_pipe[2]; /** Pipe used to transmit messages to the receiver side */
+int sender_pipe[2]; /** Pipe used to transmit messages to the sender side */
+
 
 /**
 Control daemon entry point
@@ -43,6 +53,7 @@ sender and receiver threads and executes the control routine itself.
 \return does not return 
 */
 int main(int argc, char const *argv[]) {
+	int err;
 	/* Phase 0: manual setup */
 	// TODO delete when monitoring daemon is operational
 
@@ -75,71 +86,79 @@ int main(int argc, char const *argv[]) {
 		ERR("Unable to close fd for as list", errno);
 	}
 
-	/* Phase 1: setup environment */
-	srand(time(NULL));
+	/* Phase 1: Setup */
 
-	int err;
+	// Seed random generator
+	srand(time(NULL)); // TODO thread-safe
 
-	// Setup receiver side (thread, pipe)
-	pthread_t recv_thread;
-	int recv_pipe[2];
-
-	// TODO check that PIPE_BUF is big enough
-	if ((err = pipe(recv_pipe))) {
+	// Setup receiver pipe
+	if ((err = pipe(receiver_pipe))) { // TODO check that PIPE_BUF is big enough
 		ERR("Unable to setup receiver pipe", err);
 	}
 	LOG("[main] Receiver pipe setup");
 
-	if ((err = pthread_create(&recv_thread, NULL, receiver_routine, (void*) recv_pipe[0]))) {
+	// Setup receiver thread
+	if ((err = pthread_create(&receiver_thread, NULL, receiver_routine, NULL))) { // TODO bypass to receiver_sendcap
 		ERR("Unable to setup receiver thread", err);
 	}
 	LOG("[main] Receiver thread setup");
 
-	// Setup sender side (thread, pipe)
-	pthread_t send_thread;
-	int send_pipe[2];
-
-	// TODO check that PIPE_BUF is big enough
-	if ((err = pipe(send_pipe))) {
+	// Setup sender pipe
+	if ((err = pipe(sender_pipe))) { // TODO check that PIPE_BUF is big enough
 		ERR("Unable to setup sender pipe", err);
 	}
 	LOG("[main] Send pipe setup");
 
-	if ((err = pthread_create(&send_thread, NULL, sender_routine, (void*) send_pipe[0]))) {
+	// Setup sender thread
+	if ((err = pthread_create(&sender_thread, NULL, sender_routine, NULL))) {
 		ERR("Unable to setup sender thread", err);
 	}
 	LOG("[main] Sender thread setup");
 
-	// Setup monitoring daemon
-	// TODO
-
-	/* Phase 2 : Listen on iPRP control port */
-
-	// Open socket
-	if ((ctl_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+	// Open control socket
+	if ((control_socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 		ERR("Unable to create control socket", errno);
 	}
 	LOG("[main] Control socket created");
 
-	// Bind socket
-	struct sockaddr_in ctl_sa;
-
-	ctl_sa.sin_family = AF_INET;
-	ctl_sa.sin_port = htons(IPRP_CTL_PORT);
-	ctl_sa.sin_addr.s_addr = htonl(INADDR_ANY);
-
-	if (bind(ctl_socket, (struct sockaddr *) &ctl_sa, sizeof(ctl_sa)) == -1) {
+	// Bind control socket to local control port
+	struct sockaddr_in addr;
+	memset(&addr, 0, sizeof(struct sockaddr_in));
+	addr.sin_family = AF_INET;
+	addr.sin_port = htons(IPRP_CTL_PORT);
+	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	if (bind(control_socket, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
 		ERR("Unable to bind control socket", errno);
 	}
 	LOG("[main] Control socket bound");
 
-	// Begin to listen to the socket and do the job
-	control_routine(recv_pipe[1], send_pipe[1]);
+	// Setup control thread
+	if ((err = pthread_create(&control_thread, NULL, control_routine, NULL))) {
+		ERR("Unable to setup control thread", err);
+	}
+	LOG("[main] Control thread setup");
+
+	// Join on other threads (not expected to happen)
+	void* return_value;
+	if ((err = pthread_join(control_thread, &return_value))) {
+		ERR("Unable to join on control thread", err);
+	}
+	ERR("Control thread unexpectedly finished execution", (int) return_value);
+	if ((err = pthread_join(receiver_thread, &return_value))) {
+		ERR("Unable to join on control thread", err);
+	}
+	ERR("Receiver thread unexpectedly finished execution", (int) return_value);
+	if ((err = pthread_join(sender_thread, &return_value))) {
+		ERR("Unable to join on control thread", err);
+	}
+	ERR("Sender thread unexpectedly finished execution", (int) return_value);
+	if ((err = pthread_join(sendcap_thread, &return_value))) {
+		ERR("Unable to join on control thread", err);
+	}
+	ERR("Receiver sendcap thread unexpectedly finished execution", (int) return_value);
 
 	/* Should not reach this part */
-
-	LOG("[main] Out of control routine. Entering infinite loop");
-	while(true);
+	LOG("[main] Last man standing at the end of the apocalypse");
 	return EXIT_FAILURE;
 }
 
@@ -150,12 +169,10 @@ The control routine listens on the iPRP control port and forwards the received
 packets to the sender side if it is a CAP message, or to the receiver side if
 it is an ACK message. The routine drops any unrecognized packet.
 
-\param ctl_socket the socket on which control packets are sent
-\param recv_pipe_write the writing end of the pipe to the receiver routine
-\param send_pipe_write the writing end of the pipe to the sender routine
+\param none
 \return does not return
 */
-void control_routine(int recv_pipe_write, int send_pipe_write) {
+void* control_routine(void *arg) {
 	LOG("[ctl] In routine");
 	// Listen for control messages and forward them accordingly
 	while (true) {
@@ -165,7 +182,7 @@ void control_routine(int recv_pipe_write, int send_pipe_write) {
 		int bytes;
 		socklen_t source_sa_len = sizeof(source_sa);
 
-		if ((bytes = recvfrom(ctl_socket, &msg, sizeof(iprp_ctlmsg_t), 0, (struct sockaddr *) &source_sa, &source_sa_len)) == -1) {
+		if ((bytes = recvfrom(control_socket, &msg, sizeof(iprp_ctlmsg_t), 0, (struct sockaddr *) &source_sa, &source_sa_len)) == -1) {
 			ERR("Error while receiving on control socket", errno);
 		}
 		LOG("[ctl] Received message");
@@ -179,10 +196,10 @@ void control_routine(int recv_pipe_write, int send_pipe_write) {
 			case IPRP_CAP:
 				LOG("[ctl] Received CAP message");
 				// Follow message to sender thread
-				if ((bytes = write(send_pipe_write, &msg.message.cap_message, sizeof(iprp_capmsg_t))) != sizeof(iprp_capmsg_t)) {
+				if ((bytes = write(sender_pipe[1], &msg.message.cap_message, sizeof(iprp_capmsg_t))) != sizeof(iprp_capmsg_t)) {
 					ERR("Unable to write CAP message into sender pipe", bytes);
 				}
-				if ((bytes = write(send_pipe_write, &source_sa.sin_addr, sizeof(struct in_addr))) != sizeof(struct in_addr)) {
+				if ((bytes = write(sender_pipe[1], &source_sa.sin_addr, sizeof(struct in_addr))) != sizeof(struct in_addr)) {
 					ERR("Unable to write CAP source into sender pipe", bytes);
 				}
 				break;
@@ -208,14 +225,13 @@ The receiver routine sets up the auxiliary thread(s) needed at the receiver
 side (to send CAP messages). It then listens for ACK messages coming from the
 control routine and treats them as expected.
 
-\param recv_pipe_read the reading end of the pipe to the control routine
+\param none
 \return does not return
 */
 // TODO bypass to sendcap_routine
 void* receiver_routine(void *arg) {
-	int recv_pipe_read = (int) arg;
-
 	// Launch receiver and monitoring deamons
+	// TODO not here
 	pid_t pid = fork();
 	if (pid == -1) {
 		ERR("Unable to create receiver deamon", errno);
@@ -250,7 +266,6 @@ void* receiver_routine(void *arg) {
 	LOG("[recv] Active senders list initialized");
 
 	// Setup sendcap routine
-	pthread_t sendcap_thread;
 	if ((err = pthread_create(&sendcap_thread, NULL, receiver_sendcap_routine, NULL)) != 0) {
 		ERR("Unable to setup iPRP_CAP sender thread", err);
 	}
@@ -312,13 +327,11 @@ Sender-side control flow
 
 The sender routine receives CAP messages from the control routine and treats them as expected. It updates the necessary peer bases and creates the sender daemons needed to duplicate the outgoing traffic. Before it begins, it also creates a cleanup thread to remove old entries from the peer base.
 
-\param send_pipe_read the reading end of the pipe to the control routine
+\param none
 \return does not return
 */
-// TODO bypass pipe (only 1 type) ??
 void* sender_routine(void *arg) {
 	LOG("[send] in routine");
-	int send_pipe_read = (int) arg;
 
 	// Setup sender logic
 	int err;
@@ -331,10 +344,10 @@ void* sender_routine(void *arg) {
 		iprp_capmsg_t msg;
 		struct in_addr addr;
 		int bytes;
-		if ((bytes = read(send_pipe_read, &msg, sizeof(iprp_capmsg_t))) != sizeof(iprp_capmsg_t)) {
+		if ((bytes = read(sender_pipe[0], &msg, sizeof(iprp_capmsg_t))) != sizeof(iprp_capmsg_t)) {
 			ERR("Error while reading from sender pipe", bytes);
 		}
-		if ((bytes = read(send_pipe_read, &addr, sizeof(struct in_addr))) != sizeof(struct in_addr)) {
+		if ((bytes = read(sender_pipe[0], &addr, sizeof(struct in_addr))) != sizeof(struct in_addr)) {
 			ERR("Error while reading from sender pipe", bytes);
 		}
 		LOG("[send] Received message from pipe");
@@ -342,7 +355,7 @@ void* sender_routine(void *arg) {
 		// Act on received cap
 
 		// 1. Query peer base for source
-		iprp_sender_link_t *link = peerbase_query(&msg, &addr);
+		iprp_sender_link_t *link = peerbase_query(&addr, msg.src_port, msg.dest_port);
 
 		if (link) {
 			LOG("[send] Found receiver. Updating peer base");

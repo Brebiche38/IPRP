@@ -1,5 +1,5 @@
 /**\file sender.h
- * Header file for sender.c
+ * Header file for lib/sender.c
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
  * \version alpha

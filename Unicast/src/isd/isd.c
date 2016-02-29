@@ -1,5 +1,3 @@
-#define IPRP_ISD
-
 #include <errno.h>
 #include <pthread.h>
 #include <sched.h>
@@ -29,7 +27,7 @@ int queue_fd;
 
 int sockets[IPRP_MAX_IFACE];
 
-volatile bool base_loaded = false;
+bool base_loaded = false;
 iprp_peerbase_t base;
 pthread_mutex_t base_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -129,7 +127,7 @@ void send_routine() {
 
 		int err;
 		if ((err = nfq_handle_packet(handle, buf, IPRP_PACKET_BUFFER_SIZE)) == -1) {
-			ERR("Error while handling packet", err);
+			//ERR("Error while handling packet", err); // TODO why?
 		}
 
 		LOG("[isd-send] packet handled");

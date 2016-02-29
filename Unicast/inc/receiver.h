@@ -1,5 +1,5 @@
 /**\file receiver.h
- * Header file for receiver.c
+ * Header file for lib/receiver.c
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
  * \version alpha

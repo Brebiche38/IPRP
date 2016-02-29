@@ -2,7 +2,7 @@
 #include "../../inc/global.h"
 #include "../../inc/receiver.h"
 
-extern volatile iprp_host_t this;
+extern iprp_host_t this;
 
 int send_cap(iprp_host_t *sender, int socket) {
 	/* TODO stub */

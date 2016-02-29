@@ -1,12 +1,12 @@
 /**\file global.h
- * Header file for global.c
+ * Header file for lib/global.c
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
  * \version alpha
  */
 
-#ifndef __IPRP_GLOBAL__
-#define __IPRP_GLOBAL__
+#ifndef __IPRP_GLOBAL_
+#define __IPRP_GLOBAL_
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -112,4 +112,4 @@ void list_append(list_t *list, void* value);
 	}
 
 
-#endif /* __IPRP_GLOBAL__ */
+#endif /* __IPRP_GLOBAL_ */
