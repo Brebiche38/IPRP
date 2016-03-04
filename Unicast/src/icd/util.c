@@ -32,8 +32,3 @@ int send_ack() {
 	/* TODO stub */
 	return 0;
 }
-
-int get_receiver_from_cap(iprp_host_t *recv, iprp_capmsg_t* msg) {
-	*recv = msg->receiver;
-	return 0;
-}

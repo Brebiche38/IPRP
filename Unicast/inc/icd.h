@@ -22,7 +22,6 @@ void* sender_routine(void *arg);
 int send_cap(iprp_host_t *sender, int socket);
 int send_ack();
 int get_cap_message(iprp_ctlmsg_t *msg);
-int get_receiver_from_cap(iprp_host_t *recv, iprp_capmsg_t* msg);
 
 /* Sender functions */
 int sender_init();

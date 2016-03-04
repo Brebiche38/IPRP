@@ -105,6 +105,7 @@ void receive_routine() {
 	LOG("[ird-receive] out of loop");
 }
 
+// TODO complete
 void *cleanup_routine(void* arg) {
 	LOG("[ird-cleanup] in routine");
 
@@ -123,7 +124,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr (packet); // TODO no error check in IPv6 version
 	if (!nfq_header) {
 		// TODO just let it go?
-		ERR("Unable to retrieve header form received packet", IPRP_ERR_NFQUEUE);
+		ERR("Unable to retrieve header from received packet", IPRP_ERR_NFQUEUE);
 	}
 	LOG("[ird-handle] Got header");
 
@@ -173,9 +174,9 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 	bool fresh;
 
-	if (!packet_link) {
+	if (!packet_link) { // TODO auxiliary function
 		LOG("[ird-handle] Creating receiver link");
-		// Create receiver link
+		// Create receiver link TODO check null
 		packet_link = malloc(sizeof(iprp_receiver_link_t));
 
 		memcpy(&packet_link->src_addr, &iprp_header->snsid, sizeof(struct in_addr));

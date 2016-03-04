@@ -16,6 +16,19 @@
 
 #define IPRP_DD_MAX_LOST_PACKETS 1024
 
+/**
+2 files: active senders (shared receiver-side) and monitored ports (ICD only)
+
+Monitored ports: read-only (except startup?). From ICD. No caching.
+On add: add rule to IMD queue. On delete: remove rule to IMD queue.
+First add -> create IMD/IRD
+Count to 0 -> delete IMD/IRD
+
+Active senders: internal to iPRP, holds src_addr, src_port, (dest_port?), last seen
+ICD: retrieves to send CAPs (read-only, no latency requirements)
+IMD: updates keep-alive, deletes aged entries (deletion can be periodical, update must be fast -> caching)
+*/
+
 typedef struct iprp_receiver_link iprp_receiver_link_t;
 
 typedef struct iprp_activesenders_entry {
