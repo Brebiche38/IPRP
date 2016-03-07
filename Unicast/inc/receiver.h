@@ -31,10 +31,10 @@ IMD: updates keep-alive, deletes aged entries (deletion can be periodical, updat
 
 typedef struct iprp_receiver_link iprp_receiver_link_t;
 
-typedef struct iprp_activesenders_entry {
+typedef struct iprp_active_sender {
 	iprp_host_t host;
 	uint32_t last_seen;
-} iprp_as_entry_t;
+} iprp_active_sender_t;
 
 struct iprp_receiver_link {
 	// Info (fixed) vars
@@ -54,8 +54,8 @@ int get_active_senders(iprp_host_t *buf, size_t size, int flags);
 //void set_sender_ack(iprp_sender_t *sender);
 
 /* Utility functions */
-int parse_as_entry(char *line, iprp_as_entry_t *entry);
-int get_as_entry(char *line, iprp_as_entry_t *entry);
+int parse_as_entry(char *line, iprp_active_sender_t *entry);
+int get_as_entry(char *line, iprp_active_sender_t *entry);
 int find_sender(iprp_host_t *sender, iprp_host_t *buf);
 
 /* flags */

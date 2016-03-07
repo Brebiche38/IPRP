@@ -139,10 +139,10 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	LOG("[imd-handle] Got to interesting part");
 
 	// Find corresponding SNSID in receiver_links
-	iprp_as_entry_t *entry = NULL;
+	iprp_active_sender_t *entry = NULL;
 	list_elem_t *iterator = as_entries->head;
 	while(iterator != NULL) {
-		iprp_as_entry_t *link = (iprp_as_entry_t*) iterator->elem;
+		iprp_active_sender_t *link = (iprp_active_sender_t*) iterator->elem;
 		
 		bool same = true;
 		for (int i = 0; i < 20; ++i) {

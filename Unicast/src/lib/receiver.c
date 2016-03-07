@@ -49,7 +49,7 @@ int get_active_senders(iprp_host_t *buf, size_t size, int flags) {
 			break;
 		}
 
-		iprp_as_entry_t entry;
+		iprp_active_sender_t entry;
 		int err;
 		if ((err = parse_as_entry(line, &entry)) != 0) {
 			ERR("Active senders list corrupted", err);
@@ -82,7 +82,7 @@ void set_sender_ack(iprp_sender_t *sender) {
 }
 */
 
-int parse_as_entry(char *line, iprp_as_entry_t *entry) {
+int parse_as_entry(char *line, iprp_active_sender_t *entry) {
 	if (line == NULL || entry == NULL) return IPRP_ERR_NULLPTR;
 
 	char buf[32];
@@ -116,7 +116,7 @@ int find_sender(iprp_host_t *sender, iprp_host_t *buf) {
 	return 0;
 }
 
-int get_as_entry(char *line, iprp_as_entry_t *entry) {
+int get_as_entry(char *line, iprp_active_sender_t *entry) {
 	char addr0[INET_ADDRSTRLEN];
 	char addr1[INET_ADDRSTRLEN];
 	inet_ntop(AF_INET, &entry->host.ifaces[0].addr, addr0, INET_ADDRSTRLEN);

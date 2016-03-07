@@ -32,6 +32,11 @@ pthread_t sendcap_thread;
 iprp_host_t this; /** Information about the current machine */
 
 pid_t ird_pid; /** PID of the receiver deamon */
+pid_t imd_pid;
+
+bool receiver_active = false;
+int ird_queue_num;
+int imd_queue_num;
 
 int control_socket; /** Socket used to send control messages */
 int receiver_pipe[2]; /** Pipe used to transmit messages to the receiver side */
@@ -66,7 +71,7 @@ int main(int argc, char const *argv[]) {
 	inet_pton(AF_INET, argv[2], &this.ifaces[1].addr);
 	
 	// Create active senders entry
-	iprp_as_entry_t entry;
+	iprp_active_sender_t entry;
 	entry.host.ifaces[0].ind = 0x1;
 	inet_pton(AF_INET, argv[3], &entry.host.ifaces[0].addr);
 	entry.host.ifaces[1].ind = 0x2;
@@ -230,33 +235,6 @@ control routine and treats them as expected.
 */
 // TODO bypass to sendcap_routine
 void* receiver_routine(void *arg) {
-	// Launch receiver and monitoring deamons
-	// TODO not here
-	pid_t pid = fork();
-	if (pid == -1) {
-		ERR("Unable to create receiver deamon", errno);
-	} else if (!pid) {
-		// Child side
-		// Create NFqueue
-		int queue_id = get_queue_number();
-		char shell[100];
-		snprintf(shell, 100, "sudo iptables -t mangle -A PREROUTING -p udp --dport 1001 -j NFQUEUE --queue-num %d", queue_id);
-		if (system(shell) == -1) {
-			ERR("Unable to create nfqueue for IRD", errno);
-		}
-		// Launch receiver
-		char queue_id_str[16];
-		sprintf(queue_id_str, "%d", queue_id);
-		if (execl(IPRP_IRD_BINARY_LOC, "ird", queue_id_str, NULL) == -1) {
-			ERR("Unable to launch receiver deamon", errno);
-		}
-
-		LOG("[icd] IRD created");
-	} else {
-		// Parent side
-		ird_pid = pid;
-	}
-
 	int err;
 
 	// Setup receiver logic
@@ -264,6 +242,12 @@ void* receiver_routine(void *arg) {
 		ERR("Unable to initialize active senders list", err);
 	}
 	LOG("[recv] Active senders list initialized");
+
+	// Setup port update routine
+	if ((err = pthread_create(&ports_thread, NULL, receiver_ports_routine, NULL)) != 0) {
+		ERR("Unable to setup port manager thread", err);
+	}
+	LOG("[recv] Sendcap thread created");	
 
 	// Setup sendcap routine
 	if ((err = pthread_create(&sendcap_thread, NULL, receiver_sendcap_routine, NULL)) != 0) {
@@ -287,6 +271,128 @@ void* receiver_routine(void *arg) {
 		// Need way to get active sender
 
 		//if (is_active_sender(sender)) ...
+	}
+}
+
+void* receiver_ports_routine(void* arg) {
+	LOG("[ports] In routine");
+
+	// Assign IMD/ICD queue numbers
+	do {
+		ird_queue_num = rand();
+		imd_queue_num = rand();
+	} while (ird_queue_num == imd_queue_num);
+
+	while(true) {
+		// Get list of ports
+		uint16_t *monitored_ports;
+
+		size_t num_ports = get_monitored_ports(&monitored_ports);
+		if (num_ports < 0) {
+			ERR("Unable to retrieve list of monitored ports", num_ports);
+		}
+
+		// Close expired ports
+		list_elem_t *iterator = monitored_ports->head;
+		while(iterator != NULL) {
+			uint16_t port = (uint16_t) iterator->elem;
+			bool found = false;
+			for (int i = 0; i < num_ports; ++i) {
+				if (port == monitored_ports[i]) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				// Delete list item, iptables rule
+				list_elem_t *next = iterator->next;
+				list_delete(monitored_ports, iterator);
+				iterator = next;
+
+				// Delete iptables rule
+				char buf[100];
+				snprintf(buf, 100, "sudo ip6tables -t mangle -D PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", port, imd_queue_num);
+				system(buf);
+			} else {
+				iterator = iterator->next;
+			}
+		}
+
+		// Open new ports
+		for (int i = 0; i < num_ports; ++i) {
+			bool found = false;
+			list_elem_t *iterator = monitored_ports->head;
+			while(iterator != NULL) {
+				uint16_t port = (uint16_t) iterator->elem;
+				if (port == monitored_ports[i]) {
+					found = true;
+					break;
+				}
+			}
+			if (!found) {
+				// Create list item
+				list_append(monitored_ports, (void*) port);
+
+				// Create iptables rule
+				char buf[100];
+				snprintf(buf, 100, "sudo ip6tables -t mangle -A PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", port, imd_queue_num);
+				system(buf);				
+			}
+		}
+
+		// Create or delete IRD/IMD
+		if (receiver_active && (list_size(monitored_ports) == 0)) {
+			// TODO Delete both
+
+			receiver_active = false;
+		} else if (receiver_inactive && list_size(monitored_ports) > 0) {
+			// Launch receiver deamon
+			pid_t pid = fork();
+			if (pid == -1) {
+				ERR("Unable to create receiver deamon", errno);
+			} else if (!pid) {
+				// Child side
+				// Create NFqueue
+				int queue_id = get_queue_number();
+				char shell[100];
+				snprintf(shell, 100, "sudo iptables -t mangle -A PREROUTING -p udp --dport 1001 -j NFQUEUE --queue-num %d", queue_id);
+				if (system(shell) == -1) {
+					ERR("Unable to create nfqueue for IRD", errno);
+				}
+				// Launch receiver
+				char queue_id_str[16];
+				sprintf(queue_id_str, "%d", queue_id);
+				if (execl(IPRP_IRD_BINARY_LOC, "ird", queue_id_str, NULL) == -1) {
+					ERR("Unable to launch receiver deamon", errno);
+				}
+
+				LOG("[icd] IRD created");
+			} else {
+				// Parent side
+				ird_pid = pid;
+			}
+
+			// Launch monitoring deamon
+			pid_t pid = fork();
+			if (pid == -1) {
+				ERR("Unable to create monitoring deamon", errno);
+			} else if (!pid) {
+				// Child side
+				// Launch receiver
+				if (execl(IPRP_IMD_BINARY_LOC, "imd", NULL) == -1) {
+					ERR("Unable to launch receiver deamon", errno);
+				}
+
+				LOG("[icd] IMD created");
+			} else {
+				// Parent side
+				imd_pid = pid;
+			}
+
+			receiver_active = true;
+		}
+
+		sleep(IPRP_TPORT);
 	}
 }
 
