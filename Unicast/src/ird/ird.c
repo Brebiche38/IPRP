@@ -230,7 +230,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		LOG("[ird-handle] Packet ready, setting verdict...");
 
 		// Forward packet to application
-		int verdict = NF_QUEUE | (imd_queue_id << 16)
+		int verdict = NF_QUEUE | (imd_queue_id << 16);
 
 		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), verdict, bytes - sizeof(iprp_header_t), buf) == -1) {
 			ERR("Unable to set verdict to NF_ACCEPT", IPRP_ERR_NFQUEUE);

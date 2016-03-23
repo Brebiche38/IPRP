@@ -6,6 +6,7 @@ extern iprp_host_t this;
 
 int get_active_senders(iprp_active_sender_t **senders) {
 	int count;
+	int err;
 	if (err = (activesenders_load(IPRP_ACTIVESENDERS_FILE, &count, senders))) {
 		ERR("Unable to get active senders", err);
 	}
@@ -13,7 +14,7 @@ int get_active_senders(iprp_active_sender_t **senders) {
 	return count;
 }
 
-int send_cap(struct in_addr *addr, int socket) {
+int send_cap(struct in_addr *dest_ip, int socket) {
 	/* TODO stub */
 	iprp_ctlmsg_t msg;
 
@@ -29,7 +30,9 @@ int send_cap(struct in_addr *addr, int socket) {
 	struct sockaddr_in addr;
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(IPRP_CTL_PORT);
-	addr.sin_addr = *addr;
+	addr.sin_addr.s_addr = htonl(dest_ip->s_addr);
+
+	printf("%x\n", addr.sin_addr.s_addr);
 
 	sendto(socket, (void*) &msg, sizeof(msg), 0, (struct sockaddr*) &addr, sizeof(addr));
 
@@ -38,6 +41,9 @@ int send_cap(struct in_addr *addr, int socket) {
 
 size_t get_monitored_ports(uint16_t **table) {
 	FILE* ports_file = fopen(IPRP_MONITORED_PORTS_FILE, "r");
+	if (!ports_file) {
+		ERR("Unable to open ports file", NULL);
+	}
 
 	int bytes;
 	uint16_t ports[IPRP_MAX_MONITORED_PORTS];

@@ -61,40 +61,17 @@ sender and receiver threads and executes the control routine itself.
 \return does not return 
 */
 int main(int argc, char const *argv[]) {
-	int err;
-	/* Phase 0: manual setup */
-	// TODO delete when monitoring daemon is operational
-
-	if (argc != 5) return -1;
-	this.nb_ifaces = 2;
+	/* Phase 0: Manual setup (creation of this) */
+	if (argc != 3) return -1;
 	// Create this
 	this.ifaces[0].ind = 0x1;
 	inet_pton(AF_INET, argv[1], &this.ifaces[0].addr);
 	this.ifaces[1].ind = 0x2;
 	inet_pton(AF_INET, argv[2], &this.ifaces[1].addr);
-	
-	// Create active senders entry
-	iprp_active_sender_t entry;
-	entry.host.ifaces[0].ind = 0x1;
-	inet_pton(AF_INET, argv[3], &entry.host.ifaces[0].addr);
-	entry.host.ifaces[1].ind = 0x2;
-	inet_pton(AF_INET, argv[4], &entry.host.ifaces[1].addr);
-	entry.last_seen = time(NULL);
-	
-	// Store active senders entry
-	FILE* as_list = fopen(IPRP_ACTIVESENDERS_FILE, "w");
-	if (as_list == NULL) {
-		ERR("Unable to create file descriptor for AS list", errno);
-	}
-	char line[IPRP_ACTIVESENDERS_LINE_LENGTH];
-	get_as_entry(line, &entry);
-	fputs(line, as_list);
-	fflush(as_list);
-	if (fclose(as_list) == EOF) {
-		ERR("Unable to close fd for as list", errno);
-	}
+	this.nb_ifaces = 2;
 
 	/* Phase 1: Setup */
+	int err;
 
 	// Seed random generator
 	srand(time(NULL)); // TODO thread-safe
@@ -240,11 +217,7 @@ control routine and treats them as expected.
 void* receiver_routine(void *arg) {
 	int err;
 
-	// Setup receiver logic
-	if ((err = receiver_init())) {
-		ERR("Unable to initialize active senders list", err);
-	}
-	LOG("[recv] Active senders list initialized");
+	activesenders_store(IPRP_ACTIVESENDERS_FILE, 0, NULL);
 
 	// Setup port update routine
 	if ((err = pthread_create(&ports_thread, NULL, receiver_ports_routine, NULL)) != 0) {
@@ -284,8 +257,8 @@ void* receiver_ports_routine(void* arg) {
 
 	// Assign IMD/ICD queue numbers
 	do {
-		ird_queue_num = rand();
-		imd_queue_num = rand();
+		ird_queue_num = rand() % 65535;
+		imd_queue_num = rand() % 65535;
 	} while (ird_queue_num == imd_queue_num);
 
 	while(true) {
@@ -308,6 +281,7 @@ void* receiver_ports_routine(void* arg) {
 					break;
 				}
 			}
+
 			if (!found) {
 				// Delete list item, iptables rule
 				list_elem_t *next = iterator->next;
@@ -316,7 +290,7 @@ void* receiver_ports_routine(void* arg) {
 
 				// Delete iptables rule
 				char buf[100];
-				snprintf(buf, 100, "sudo ip6tables -t mangle -D PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", port, imd_queue_num);
+				snprintf(buf, 100, "sudo iptables -t mangle -D PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", port, imd_queue_num);
 				system(buf);
 			} else {
 				iterator = iterator->next;
@@ -340,7 +314,7 @@ void* receiver_ports_routine(void* arg) {
 
 				// Create iptables rule
 				char buf[100];
-				snprintf(buf, 100, "sudo ip6tables -t mangle -A PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", new_ports[i], imd_queue_num);
+				snprintf(buf, 100, "sudo iptables -t mangle -A PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", new_ports[i], imd_queue_num);
 				system(buf);				
 			}
 		}
@@ -359,9 +333,8 @@ void* receiver_ports_routine(void* arg) {
 			} else if (!pid) {
 				// Child side
 				// Create NFqueue
-				int queue_id = get_queue_number();
 				char shell[100];
-				snprintf(shell, 100, "sudo iptables -t mangle -A PREROUTING -p udp --dport 1001 -j NFQUEUE --queue-num %d", queue_id);
+				snprintf(shell, 100, "sudo iptables -t mangle -A PREROUTING -p udp --dport 1001 -j NFQUEUE --queue-num %d", ird_queue_num);
 				if (system(shell) == -1) {
 					ERR("Unable to create nfqueue for IRD", errno);
 				}
@@ -390,7 +363,7 @@ void* receiver_ports_routine(void* arg) {
 				char imd_queue_id_str[16];
 				sprintf(imd_queue_id_str, "%d", imd_queue_num);
 				if (execl(IPRP_IMD_BINARY_LOC, "imd", imd_queue_id_str, NULL) == -1) {
-					ERR("Unable to launch receiver deamon", errno);
+					ERR("Unable to launch monitoring deamon", errno);
 				}
 
 				LOG("[icd] IMD created");
@@ -429,9 +402,11 @@ void* receiver_sendcap_routine(void* arg) {
 	while(true) {
 		iprp_active_sender_t* senders;
 		int count = get_active_senders(&senders);
+		printf("%d\n", count);
 		LOG("[sendcap] Active senders retrieved");
 		for (int i = 0; i < count; ++i) {
-			send_cap(&senders[i], sendcap_socket);
+			send_cap(&senders[i].src_addr, sendcap_socket);
+			LOG("Send CAP");
 		}
 		LOG("[sendcap] All CAPs sent. Sleeping...");
 		sleep(IPRP_TCAP);
@@ -522,6 +497,7 @@ void* sender_routine(void *arg) {
 					link->isd_pid = pid;
 				}
 			}
+			LOG("[send] end loop");
 		}
 	}
 }

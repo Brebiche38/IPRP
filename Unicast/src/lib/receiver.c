@@ -20,20 +20,22 @@ FILE *as_write = NULL;
 //char acks[IPRP_ACTIVESENDERS_MAX_SENDERS];
 
 int activesenders_store(const char* path, int count, iprp_active_sender_t* senders) {
-	if (!path || !senders) return IPRP_ERR_NULLPTR;
+	if (!path) return IPRP_ERR_NULLPTR;
 
-	FILE* file = fopen(path, "w");
-	if (!file) {
+	FILE* writer = fopen(path, "w");
+	if (!writer) {
 		ERR("Unable to open active senders file", errno);
 	}
 
 	// TODO prevent concurrent reading (write bit)
 
 	// Write entry count
-	fwrite(&count, sizeof(int), 1, file);
+	fwrite(&count, sizeof(int), 1, writer);
 
 	// Write entries
-	fwrite(senders, sizeof(iprp_active_sender_t), count, file);
+	if (count > 0) {
+		fwrite(senders, sizeof(iprp_active_sender_t), count, writer);
+	}
 
 	fflush(writer);
 
@@ -45,16 +47,19 @@ int activesenders_store(const char* path, int count, iprp_active_sender_t* sende
 int activesenders_load(const char *path, int* count, iprp_active_sender_t** senders) {
 	if (!path || !count || ! senders) return IPRP_ERR_NULLPTR;
 
-	FILE* file = fopen(path, "r");
-	if (!file) {
+	FILE* reader = fopen(path, "r");
+	if (!reader) {
 		ERR("Unable to open active senders file", errno);
 	}
 
-	fread(count, sizeof(int), 1, file);
+	fread(count, sizeof(int), 1, reader);
 
-	*senders = calloc(*count, sizeof(iprp_active_sender_t));
+	if (count > 0) {
+		*senders = calloc(*count, sizeof(iprp_active_sender_t));
+		fread(*senders, sizeof(iprp_active_sender_t), *count, reader);
+	}
 
-	fread(*senders, sizeof(iprp_active_sender_t), *count, file);
+	fclose(reader);
 
 	return 0;
 }

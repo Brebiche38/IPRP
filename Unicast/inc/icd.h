@@ -21,7 +21,7 @@ void* receiver_ports_routine(void* arg);
 
 /* Receiver functions */
 int get_active_senders(iprp_active_sender_t **senders);
-int send_cap(iprp_host_t *sender, int socket);
+int send_cap(struct in_addr *dest_ip, int socket);
 size_t get_monitored_ports(uint16_t **table);
 
 /* Sender functions */

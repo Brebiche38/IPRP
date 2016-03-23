@@ -33,6 +33,8 @@ iprp_iface_t *get_iface_from_ind(iprp_host_t *host, iprp_ind_t ind) {
 int ind_match(iprp_host_t *sender, iprp_host_t *receiver) {
 	int matching_inds = 0;
 
+	printf("%d %d\n", sender->nb_ifaces, receiver->nb_ifaces);
+
 	for (int i = 0; i < sender->nb_ifaces; ++i) {
 		if (sender->ifaces[i].ind == receiver->ifaces[i].ind) {
 			matching_inds |= (1 << sender->ifaces[i].ind);

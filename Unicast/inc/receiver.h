@@ -51,16 +51,8 @@ struct iprp_receiver_link {
 	time_t last_seen;
 };
 
-/* Library functions */
-int receiver_init();
-int get_active_senders(iprp_host_t *buf, size_t size, int flags);
-//int is_active_sender(iprp_sender_t *sender);
-//void set_sender_ack(iprp_sender_t *sender);
-
-/* Utility functions */
-int parse_as_entry(char *line, iprp_active_sender_t *entry);
-int get_as_entry(char *line, iprp_active_sender_t *entry);
-int find_sender(iprp_host_t *sender, iprp_host_t *buf);
+int activesenders_store(const char* path, int count, iprp_active_sender_t* senders);
+int activesenders_load(const char *path, int* count, iprp_active_sender_t** senders);
 
 /* flags */
 enum active_senders_flags {

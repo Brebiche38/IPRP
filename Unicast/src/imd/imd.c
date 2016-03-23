@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
+#include <unistd.h>
 
 #include "../../inc/imd.h"
 #include "../../inc/global.h"
@@ -71,7 +72,7 @@ int main(int argc, char const *argv[]) {
 void monitor_routine() {
 	LOG("[imd-monitor] in routine");
 
-	list_init(&receiver_links);
+	list_init(&active_senders);
 	LOG("[imd-monitor] Receiver links list initialized");
 
 	int bytes;
@@ -106,31 +107,38 @@ void monitor_routine() {
 
 void* cleanup_routine(void* arg) {
 	// Delete aged entries
-	time_t curr_time = time(NULL);
 
-	int count = 0;
+	while(true) {
+		time_t curr_time = time(NULL);
 
-	list_elem_t *iterator = active_senders.head;
-	while(iterator != NULL) {
-		iprp_active_sender_t *as = (iprp_active_sender_t*) iterator->elem;
+		int count = 0;
 
-		iterator = iterator->next;
-		if (curr_time - as->last_seen > IPRP_IMD_TCLEANUP) {
-			list_delete(active_senders, as);
-		} else {
-			count++;
+		list_elem_t *iterator = active_senders.head;
+		while(iterator != NULL) {
+			iprp_active_sender_t *as = (iprp_active_sender_t*) iterator->elem;
+
+			if (curr_time - as->last_seen > IPRP_IMD_TEXP) {
+				list_elem_t *to_delete = iterator;
+				iterator = iterator->next;
+				list_delete(&active_senders, to_delete);
+			} else {
+				count++;
+				iterator = iterator->next;
+			}
 		}
-	}
 
-	iprp_active_sender_t *entries = calloc(count, sizeof(iprp_active_sender_t));
-	iterator = active_senders.head;
-	for (int i = 0; i < count; ++i) {
-		entries[i] = (iprp_active_sender_t*) iterator->elem;
-		iterator = iterator->next;
-	}
+		iprp_active_sender_t *entries = calloc(count, sizeof(iprp_active_sender_t));
+		iterator = active_senders.head;
+		for (int i = 0; i < count; ++i) {
+			entries[i] = *((iprp_active_sender_t*) iterator->elem);
+			iterator = iterator->next;
+		}
 
-	// Update on file
-	activesenders_store(IPRP_ACTIVESENDERS_FILE, count, entries);
+		// Update on file
+		activesenders_store(IPRP_ACTIVESENDERS_FILE, count, entries);
+
+		sleep(IPRP_IMD_TCLEANUP);
+	}
 }
 
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
@@ -160,7 +168,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 	LOG("[imd-handle] Got to interesting part");
 
-	struct in_addr src_addr = ntohl(ip_header->ip_src);
+	struct in_addr src_addr;
+	src_addr.s_addr = ntohl(ip_header->saddr);
 
 	// Find corresponding entry in active senders
 	iprp_active_sender_t *entry = NULL;
@@ -168,7 +177,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	while(iterator != NULL) {
 		iprp_active_sender_t *as = (iprp_active_sender_t*) iterator->elem;
 		
-		if (src_addr.saddr == as->src_addr.saddr) {
+		if (src_addr.s_addr == as->src_addr.s_addr) {
 			entry = as;
 			break;
 		}

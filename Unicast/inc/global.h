@@ -13,12 +13,25 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#include "config.h"
 #include "debug.h"
+
+#define IPRP_VERSION 1
+#define IPRP_TCAP 3 // 30 seconds
+#define IPRP_MAX_SENDERS 64
+#define IPRP_CTL_PORT 1000
+#define IPRP_DATA_PORT 1001
+#define IPRP_MAX_IFACE 4
+#define IPRP_MAX_INDS 16
+#define IPRP_PATH_LENGTH 50
+#define IPRP_PACKET_BUFFER_SIZE 4096
+
+#define IPRP_ISD_BINARY_LOC "bin/isd"
+#define IPRP_IRD_BINARY_LOC "bin/ird"
+#define IPRP_IMD_BINARY_LOC "bin/imd"
 
 #define IPRP_CTLMSG_SECRET 0x3dbf391e
 #define IPRP_IFACE_NAME_LENGTH 10
-#define IPRP_MONITORED_PORTS_FILE "files/ports.txt"
+#define IPRP_MONITORED_PORTS_FILE "ports.txt"
 #define IPRP_MAX_MONITORED_PORTS 16
 #define IPRP_TPORT 3
 #define IPRP_NFQUEUE_MAX_LENGTH 100
