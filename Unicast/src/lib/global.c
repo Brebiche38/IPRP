@@ -64,3 +64,26 @@ void list_append(list_t *list, void* value) {
 
 	list->size++;
 }
+
+void list_delete(list_t *list, list_elem_t *elem) {
+	if (list->head == elem) {
+		list->head = elem->next;
+	}
+	if (list->tail == elem) {
+		list->tail = elem->prev;
+	}
+
+	// Global case
+	if (elem->next) {
+		elem->next->prev = elem->prev;
+	}
+	if (elem->prev) {
+		elem->prev->next = elem->next;
+	}
+
+	list->size--;
+}
+
+size_t list_size(list_t *list) {
+	return list->size;
+}

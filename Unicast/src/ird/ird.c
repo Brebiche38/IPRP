@@ -20,12 +20,15 @@ int queue_fd;
 
 list_t receiver_links;
 
+int imd_queue_id;
+
 pthread_t cleanup_thread;
 
 int main(int argc, char const *argv[]) {
 	LOG("[ird] started");
 	// Get arguments
 	int queue_id = atoi(argv[1]);
+	imd_queue_id = atoi(argv[2]);
 
 	// Setup nfqueue
 	handle = nfq_open();
@@ -227,7 +230,9 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		LOG("[ird-handle] Packet ready, setting verdict...");
 
 		// Forward packet to application
-		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_ACCEPT, bytes - sizeof(iprp_header_t), buf) == -1) { // TODO  - sizeof(iprp_header_t)
+		int verdict = NF_QUEUE | (imd_queue_id << 16)
+
+		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), verdict, bytes - sizeof(iprp_header_t), buf) == -1) {
 			ERR("Unable to set verdict to NF_ACCEPT", IPRP_ERR_NFQUEUE);
 		}
 	} else {

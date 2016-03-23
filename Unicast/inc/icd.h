@@ -17,11 +17,12 @@ void* control_routine(void *arg);
 void* receiver_routine(void *arg);
 void* receiver_sendcap_routine(void *arg);
 void* sender_routine(void *arg);
+void* receiver_ports_routine(void* arg);
 
-/* Utility functions */
+/* Receiver functions */
+int get_active_senders(iprp_active_sender_t **senders);
 int send_cap(iprp_host_t *sender, int socket);
-int send_ack();
-int get_cap_message(iprp_ctlmsg_t *msg);
+size_t get_monitored_ports(uint16_t **table);
 
 /* Sender functions */
 int sender_init();

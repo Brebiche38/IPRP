@@ -18,6 +18,11 @@
 
 #define IPRP_CTLMSG_SECRET 0x3dbf391e
 #define IPRP_IFACE_NAME_LENGTH 10
+#define IPRP_MONITORED_PORTS_FILE "files/ports.txt"
+#define IPRP_MAX_MONITORED_PORTS 16
+#define IPRP_TPORT 3
+#define IPRP_NFQUEUE_MAX_LENGTH 100
+
 
 typedef uint32_t iprp_version_t;
 typedef uint8_t iprp_ind_t;
@@ -101,8 +106,11 @@ struct list {
 
 void list_init(list_t *list);
 void list_append(list_t *list, void* value);
+void list_delete(list_t *list, list_elem_t *elem);
+size_t list_size(list_t *list);
 // ATTENTION: doubly linked but not cyclical
 
+// Not used yet
 #define LIST_ITERATE(list, type, var, body) 	\
 	void *iterator = (list);					\
 	while(iterator != NULL) {					\

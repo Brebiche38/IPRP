@@ -4,14 +4,22 @@
 #include <linux/types.h>
 #include <linux/netfilter.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
+#include <stdbool.h>
+#include <errno.h>
+#include <linux/ip.h>
+#include <linux/udp.h>
 
-#include "../../imd.h"
-#include "../../global.h"
-#include "../../receiver.h"
+#include "../../inc/imd.h"
+#include "../../inc/global.h"
+#include "../../inc/receiver.h"
 
 pthread_t cleanup_thread;
 
-list_t *as_entries;
+list_t active_senders;
+
+struct nfq_handle *handle;
+struct nfq_q_handle *queue;
+int queue_fd;
 
 int main(int argc, char const *argv[]) {
 	LOG("[imd] started");
@@ -97,12 +105,32 @@ void monitor_routine() {
 }
 
 void* cleanup_routine(void* arg) {
-	// Cache AS list
-
 	// Delete aged entries
+	time_t curr_time = time(NULL);
+
+	int count = 0;
+
+	list_elem_t *iterator = active_senders.head;
+	while(iterator != NULL) {
+		iprp_active_sender_t *as = (iprp_active_sender_t*) iterator->elem;
+
+		iterator = iterator->next;
+		if (curr_time - as->last_seen > IPRP_IMD_TCLEANUP) {
+			list_delete(active_senders, as);
+		} else {
+			count++;
+		}
+	}
+
+	iprp_active_sender_t *entries = calloc(count, sizeof(iprp_active_sender_t));
+	iterator = active_senders.head;
+	for (int i = 0; i < count; ++i) {
+		entries[i] = (iprp_active_sender_t*) iterator->elem;
+		iterator = iterator->next;
+	}
 
 	// Update on file
-
+	activesenders_store(IPRP_ACTIVESENDERS_FILE, count, entries);
 }
 
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
@@ -129,30 +157,19 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	// Get payload headers
 	struct iphdr *ip_header = (struct iphdr *) buf; // TODO assert IP header length = 20 bytes
 	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr)); // TODO sizeof(uint32_t) * ip_header->ip_hdr_len
-	iprp_header_t *iprp_header = (iprp_header_t *) (buf + sizeof(struct iphdr) + sizeof(struct udphdr));
-
-	if (iprp_header->version != IPRP_VERSION) {
-		// TODO leave him be
-
-	}
 
 	LOG("[imd-handle] Got to interesting part");
 
-	// Find corresponding SNSID in receiver_links
+	struct in_addr src_addr = ntohl(ip_header->ip_src);
+
+	// Find corresponding entry in active senders
 	iprp_active_sender_t *entry = NULL;
-	list_elem_t *iterator = as_entries->head;
+	list_elem_t *iterator = active_senders.head;
 	while(iterator != NULL) {
-		iprp_active_sender_t *link = (iprp_active_sender_t*) iterator->elem;
+		iprp_active_sender_t *as = (iprp_active_sender_t*) iterator->elem;
 		
-		bool same = true;
-		for (int i = 0; i < 20; ++i) {
-			if (link->snsid[i] != iprp_header->snsid[i]) {
-				same = false;
-				break;
-			}
-		}
-		if (same) {
-			entry = link;
+		if (src_addr.saddr == as->src_addr.saddr) {
+			entry = as;
 			break;
 		}
 		iterator = iterator->next;
@@ -160,10 +177,18 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 	if (!entry) {
 		// TODO Create it
+		entry = malloc(sizeof(iprp_active_sender_t));
+		if (!entry) {
+			ERR("malloc failed to create active senders entry", errno);
+		}
+
+		entry->src_addr = src_addr;
+		
+		// Add entry to active senders
+		list_append(&active_senders, entry);
 	}
 
-	// Add entry to as_entries
-	list_append(as_entries, entry);
+	entry->last_seen = time(NULL);
 
 	// Accept packet
 	if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_ACCEPT, bytes, buf) == -1) {

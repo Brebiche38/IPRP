@@ -20,6 +20,7 @@
 
 #define IPRP_ISD_BINARY_LOC "bin/isd"
 #define IPRP_IRD_BINARY_LOC "bin/ird"
+#define IPRP_IMD_BINARY_LOC "bin/imd"
 
 // TODO Convention: all error handling is done in icd/imd/isd/ird files, library files return error codes
 

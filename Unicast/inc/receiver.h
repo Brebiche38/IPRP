@@ -27,14 +27,18 @@ Count to 0 -> delete IMD/IRD
 Active senders: internal to iPRP, holds src_addr, src_port, (dest_port?), last seen
 ICD: retrieves to send CAPs (read-only, no latency requirements)
 IMD: updates keep-alive, deletes aged entries (deletion can be periodical, update must be fast -> caching)
+IRD: nothing
 */
 
 typedef struct iprp_receiver_link iprp_receiver_link_t;
+typedef struct iprp_active_sender iprp_active_sender_t;
 
-typedef struct iprp_active_sender {
-	iprp_host_t host;
-	uint32_t last_seen;
-} iprp_active_sender_t;
+struct iprp_active_sender {
+	struct in_addr src_addr;
+//	uint16_t src_port;
+//	uint16_t dest_port;
+	time_t last_seen;
+};
 
 struct iprp_receiver_link {
 	// Info (fixed) vars

@@ -8,7 +8,6 @@
 #ifndef __IPRP_ISD_
 #define __IPRP_ISD_
 
-#define IPRP_NFQUEUE_MAX_LENGTH 100
 #define IPRP_ISD_TCACHE 3
 
 void send_routine();

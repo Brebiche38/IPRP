@@ -27,9 +27,12 @@ pthread_t control_thread;
 pthread_t receiver_thread;
 pthread_t sender_thread;
 pthread_t sendcap_thread;
+pthread_t ports_thread;
 
 /* Global variables */
 iprp_host_t this; /** Information about the current machine */
+
+list_t monitored_ports;
 
 pid_t ird_pid; /** PID of the receiver deamon */
 pid_t imd_pid;
@@ -277,6 +280,8 @@ void* receiver_routine(void *arg) {
 void* receiver_ports_routine(void* arg) {
 	LOG("[ports] In routine");
 
+	list_init(&monitored_ports);
+
 	// Assign IMD/ICD queue numbers
 	do {
 		ird_queue_num = rand();
@@ -285,20 +290,20 @@ void* receiver_ports_routine(void* arg) {
 
 	while(true) {
 		// Get list of ports
-		uint16_t *monitored_ports;
+		uint16_t *new_ports;
 
-		size_t num_ports = get_monitored_ports(&monitored_ports);
+		size_t num_ports = get_monitored_ports(&new_ports);
 		if (num_ports < 0) {
 			ERR("Unable to retrieve list of monitored ports", num_ports);
 		}
 
 		// Close expired ports
-		list_elem_t *iterator = monitored_ports->head;
+		list_elem_t *iterator = monitored_ports.head;
 		while(iterator != NULL) {
 			uint16_t port = (uint16_t) iterator->elem;
 			bool found = false;
 			for (int i = 0; i < num_ports; ++i) {
-				if (port == monitored_ports[i]) {
+				if (port == new_ports[i]) {
 					found = true;
 					break;
 				}
@@ -306,7 +311,7 @@ void* receiver_ports_routine(void* arg) {
 			if (!found) {
 				// Delete list item, iptables rule
 				list_elem_t *next = iterator->next;
-				list_delete(monitored_ports, iterator);
+				list_delete(&monitored_ports, iterator);
 				iterator = next;
 
 				// Delete iptables rule
@@ -321,33 +326,34 @@ void* receiver_ports_routine(void* arg) {
 		// Open new ports
 		for (int i = 0; i < num_ports; ++i) {
 			bool found = false;
-			list_elem_t *iterator = monitored_ports->head;
+			list_elem_t *iterator = monitored_ports.head;
 			while(iterator != NULL) {
 				uint16_t port = (uint16_t) iterator->elem;
-				if (port == monitored_ports[i]) {
+				if (port == new_ports[i]) {
 					found = true;
 					break;
 				}
 			}
 			if (!found) {
 				// Create list item
-				list_append(monitored_ports, (void*) port);
+				list_append(&monitored_ports, (void*) new_ports[i]);
 
 				// Create iptables rule
 				char buf[100];
-				snprintf(buf, 100, "sudo ip6tables -t mangle -A PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", port, imd_queue_num);
+				snprintf(buf, 100, "sudo ip6tables -t mangle -A PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", new_ports[i], imd_queue_num);
 				system(buf);				
 			}
 		}
 
 		// Create or delete IRD/IMD
-		if (receiver_active && (list_size(monitored_ports) == 0)) {
+		if (receiver_active && (list_size(&monitored_ports) == 0)) {
 			// TODO Delete both
 
 			receiver_active = false;
-		} else if (receiver_inactive && list_size(monitored_ports) > 0) {
+		} else if (!receiver_active && list_size(&monitored_ports) > 0) {
+			pid_t pid;
 			// Launch receiver deamon
-			pid_t pid = fork();
+			pid = fork();
 			if (pid == -1) {
 				ERR("Unable to create receiver deamon", errno);
 			} else if (!pid) {
@@ -360,9 +366,11 @@ void* receiver_ports_routine(void* arg) {
 					ERR("Unable to create nfqueue for IRD", errno);
 				}
 				// Launch receiver
-				char queue_id_str[16];
-				sprintf(queue_id_str, "%d", queue_id);
-				if (execl(IPRP_IRD_BINARY_LOC, "ird", queue_id_str, NULL) == -1) {
+				char ird_queue_id_str[16];
+				sprintf(ird_queue_id_str, "%d", ird_queue_num);
+				char imd_queue_id_str[16];
+				sprintf(imd_queue_id_str, "%d", imd_queue_num);
+				if (execl(IPRP_IRD_BINARY_LOC, "ird", ird_queue_id_str, imd_queue_id_str, NULL) == -1) {
 					ERR("Unable to launch receiver deamon", errno);
 				}
 
@@ -373,13 +381,15 @@ void* receiver_ports_routine(void* arg) {
 			}
 
 			// Launch monitoring deamon
-			pid_t pid = fork();
+			pid = fork();
 			if (pid == -1) {
 				ERR("Unable to create monitoring deamon", errno);
 			} else if (!pid) {
 				// Child side
 				// Launch receiver
-				if (execl(IPRP_IMD_BINARY_LOC, "imd", NULL) == -1) {
+				char imd_queue_id_str[16];
+				sprintf(imd_queue_id_str, "%d", imd_queue_num);
+				if (execl(IPRP_IMD_BINARY_LOC, "imd", imd_queue_id_str, NULL) == -1) {
 					ERR("Unable to launch receiver deamon", errno);
 				}
 
@@ -417,8 +427,8 @@ void* receiver_sendcap_routine(void* arg) {
 	LOG("[sendcap] socket created");
 
 	while(true) {
-		iprp_host_t senders[IPRP_MAX_SENDERS];
-		int count = get_active_senders(senders, IPRP_MAX_SENDERS, IPRP_AS_ALL);
+		iprp_active_sender_t* senders;
+		int count = get_active_senders(&senders);
 		LOG("[sendcap] Active senders retrieved");
 		for (int i = 0; i < count; ++i) {
 			send_cap(&senders[i], sendcap_socket);
