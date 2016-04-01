@@ -16,6 +16,10 @@
 #include "global.h"
 #include "receiver.h"
 
+// Begin cleaned up defines
+
+// End cleaned up defines
+
 #define IPRP_NFQUEUE_MAX_LENGTH 100
 #define IPRP_IRD_TCACHE 3
 

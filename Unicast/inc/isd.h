@@ -8,6 +8,10 @@
 #ifndef __IPRP_ISD_
 #define __IPRP_ISD_
 
+// Begin cleaned up defines
+
+// End cleaned up defines
+
 #define IPRP_ISD_TCACHE 3
 
 void send_routine();

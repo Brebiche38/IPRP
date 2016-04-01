@@ -15,6 +15,11 @@
 
 #include "debug.h"
 
+// Begin cleaned up defines
+#define IPRP_PACKET_BUFFER_SIZE 4096
+#define IPRP_NFQUEUE_MAX_LENGTH 100
+// End cleaned up defines
+
 #define IPRP_VERSION 1
 #define IPRP_TCAP 3 // 30 seconds
 #define IPRP_MAX_SENDERS 64
@@ -23,7 +28,6 @@
 #define IPRP_MAX_IFACE 4
 #define IPRP_MAX_INDS 16
 #define IPRP_PATH_LENGTH 50
-#define IPRP_PACKET_BUFFER_SIZE 4096
 
 #define IPRP_ISD_BINARY_LOC "bin/isd"
 #define IPRP_IRD_BINARY_LOC "bin/ird"
@@ -34,7 +38,6 @@
 #define IPRP_MONITORED_PORTS_FILE "ports.txt"
 #define IPRP_MAX_MONITORED_PORTS 16
 #define IPRP_TPORT 3
-#define IPRP_NFQUEUE_MAX_LENGTH 100
 
 
 typedef uint32_t iprp_version_t;
@@ -121,6 +124,9 @@ void list_init(list_t *list);
 void list_append(list_t *list, void* value);
 void list_delete(list_t *list, list_elem_t *elem);
 size_t list_size(list_t *list);
+void list_lock(list_t *list);
+void list_unlock(list_t *list);
+
 // ATTENTION: doubly linked but not cyclical
 
 // Not used yet

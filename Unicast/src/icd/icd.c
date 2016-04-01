@@ -45,7 +45,6 @@ int control_socket; /** Socket used to send control messages */
 int receiver_pipe[2]; /** Pipe used to transmit messages to the receiver side */
 int sender_pipe[2]; /** Pipe used to transmit messages to the sender side */
 
-
 /**
 Control daemon entry point
 
@@ -217,6 +216,7 @@ control routine and treats them as expected.
 void* receiver_routine(void *arg) {
 	int err;
 
+	// Initialize active sender list
 	activesenders_store(IPRP_ACTIVESENDERS_FILE, 0, NULL);
 
 	// Setup port update routine
@@ -402,7 +402,6 @@ void* receiver_sendcap_routine(void* arg) {
 	while(true) {
 		iprp_active_sender_t* senders;
 		int count = get_active_senders(&senders);
-		printf("%d\n", count);
 		LOG("[sendcap] Active senders retrieved");
 		for (int i = 0; i < count; ++i) {
 			send_cap(&senders[i].src_addr, sendcap_socket);

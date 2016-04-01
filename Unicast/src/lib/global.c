@@ -53,6 +53,10 @@ void list_init(list_t *list) {
 
 void list_append(list_t *list, void* value) {
 	list_elem_t *new_elem = malloc(sizeof(list_elem_t));
+	if (!new_elem) {
+		ERR("Unable to allocate list element", errno);
+	}
+
 	new_elem->elem = value;
 	new_elem->next = NULL;
 	new_elem->prev = list->tail;
@@ -88,4 +92,12 @@ void list_delete(list_t *list, list_elem_t *elem) {
 
 size_t list_size(list_t *list) {
 	return list->size;
+}
+
+void list_lock(list_t *list) {
+	pthread_mutex_lock(list->mutex);
+}
+
+void list_unlock(list_t *list) {
+	pthread_mutex_unlock(list->mutex);
 }

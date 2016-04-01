@@ -32,8 +32,6 @@ int send_cap(struct in_addr *dest_ip, int socket) {
 	addr.sin_port = htons(IPRP_CTL_PORT);
 	addr.sin_addr.s_addr = htonl(dest_ip->s_addr);
 
-	printf("%x\n", addr.sin_addr.s_addr);
-
 	sendto(socket, (void*) &msg, sizeof(msg), 0, (struct sockaddr*) &addr, sizeof(addr));
 
 	return 0;

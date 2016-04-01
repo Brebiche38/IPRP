@@ -15,6 +15,10 @@
 
 #include "global.h"
 
+// Begin cleaned up defines
+
+// End cleaned up defines
+
 #define IPRP_PEERBASE_MAX_SIZE (IPRP_PEERBASE_1STLINE_LENGTH + IPRP_MAX_IFACE * IPRP_PEERBASE_LINE_LENGTH)
 #define IPRP_PEERBASE_1STLINE_LENGTH 80
 #define IPRP_PEERBASE_LINE_LENGTH 80

@@ -12,6 +12,11 @@
 #include "sender.h"
 #include "receiver.h"
 
+// Begin cleaned up defines
+
+// End cleaned up defines
+
+
 /* Control flow routines */
 void* control_routine(void *arg);
 void* receiver_routine(void *arg);

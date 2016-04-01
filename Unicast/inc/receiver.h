@@ -10,7 +10,10 @@
 
 #include "global.h"
 
+// Begin cleaned up defines
 #define IPRP_ACTIVESENDERS_FILE "files/activesenders.iprp"
+// End cleaned up defines
+
 #define IPRP_ACTIVESENDERS_LINE_LENGTH 80
 #define IPRP_ACTIVESENDERS_MAX_SENDERS 256
 
@@ -35,8 +38,8 @@ typedef struct iprp_active_sender iprp_active_sender_t;
 
 struct iprp_active_sender {
 	struct in_addr src_addr;
-//	uint16_t src_port;
-//	uint16_t dest_port;
+	uint16_t src_port;
+	uint16_t dest_port;
 	time_t last_seen;
 };
 
