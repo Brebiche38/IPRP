@@ -94,11 +94,21 @@ int main(int argc, char const *argv[]) {
 	}
 	DEBUG(IPRP_ISD, "Send thread created");
 	
-	// TODO shouldn't get here ?
+	LOG(IPRP_ISD, "Sender daemon successfully created");
 
-	cleanup();
+	// Join on threads (should not happen)
+	void* return_value;
+	if ((err = pthread_join(send_thread, &return_value))) {
+		ERR("Unable to join on receive thread", err);
+	}
+	ERR("Cleanup thread unexpectedly finished execution", (int) return_value);
+	if ((err = pthread_join(cache_thread, &return_value))) {
+		ERR("Unable to join on cleanup thread", err);
+	}
+	ERR("Cleanup thread unexpectedly finished execution", (int) return_value);
 
-	return EXIT_SUCCESS;
+	LOG(IPRP_IRD, "Last man standing at the end of the apocalypse");
+	return EXIT_FAILURE;
 }
 
 void* send_routine(void* arg) {

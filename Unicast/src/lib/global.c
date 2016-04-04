@@ -5,6 +5,7 @@
  * \version alpha
  */
 
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -32,8 +33,6 @@ iprp_iface_t *get_iface_from_ind(iprp_host_t *host, iprp_ind_t ind) {
 
 int ind_match(iprp_host_t *sender, iprp_host_t *receiver) {
 	int matching_inds = 0;
-
-	printf("%d %d\n", sender->nb_ifaces, receiver->nb_ifaces);
 
 	for (int i = 0; i < sender->nb_ifaces; ++i) {
 		if (sender->ifaces[i].ind == receiver->ifaces[i].ind) {
@@ -97,9 +96,37 @@ size_t list_size(list_t *list) {
 }
 
 void list_lock(list_t *list) {
-	pthread_mutex_lock(list->mutex);
+	pthread_mutex_lock(&list->mutex);
 }
 
 void list_unlock(list_t *list) {
-	pthread_mutex_unlock(list->mutex);
+	pthread_mutex_unlock(&list->mutex);
+}
+
+char* iprp_thr_name(iprp_thread_t thread) {
+	switch(thread) {
+		case IPRP_ICD: return "icd";
+		case IPRP_ICD_CONTROL: return "icd-control";
+		case IPRP_ICD_RECV: return "icd-receiver";
+		case IPRP_ICD_SEND: return "icd-sender";
+		case IPRP_ICD_SENDCAP: return "icd-sendcap";
+		case IPRP_ICD_PORTS: return "icd-ports";
+
+		case IPRP_ISD: return "isd";
+		case IPRP_ISD_SEND: return "isd-send";
+		case IPRP_ISD_CACHE: return "isd-cache";
+		case IPRP_ISD_HANDLE: return "isd-handle";
+
+		case IPRP_IMD: return "imd";
+		case IPRP_IMD_MONITOR: return "imd-monitor";
+		case IPRP_IMD_CLEANUP: return "imd-cleanup";
+		case IPRP_IMD_HANDLE: return "imd-handle";
+
+		case IPRP_IRD: return "ird";
+		case IPRP_IRD_RECV: return "ird-recv";
+		case IPRP_IRD_CLEANUP: return "ird-cleanup";
+		case IPRP_IRD_HANDLE: return "ird-handle";
+
+		default: return "???";
+	}	
 }

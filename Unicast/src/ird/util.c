@@ -1,6 +1,10 @@
 #include <stdbool.h>
 #include <stdio.h>
-// TODO include malloc, struct in_addr, ntohs, time, struct iphdr, memcpy
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+#include <arpa/inet.h>
+#include <linux/ip.h>
 
 #include "../../inc/ird.h"
 #include "../../inc/global.h"
@@ -23,7 +27,7 @@ iprp_receiver_link_t *receiver_link_get(iprp_header_t *header) {
 		// Compare SNSIDs
 		iprp_receiver_link_t *link = (iprp_receiver_link_t *) iterator->elem;
 		bool same = true;
-		for (int i = 0; i < 20; ++i) {
+		for (int i = 0; i < IPRP_SNSID_SIZE; ++i) {
 			if (link->snsid[i] != header->snsid[i]) {
 				same = false;
 				break;
@@ -64,6 +68,8 @@ iprp_receiver_link_t *receiver_link_create(iprp_header_t *header) {
 	}
 	packet_link->high_sn = header->seq_nb;
 	packet_link->last_seen = time(NULL);
+
+	return packet_link;
 }
 
 /**

@@ -266,5 +266,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	}
 	DEBUG(IPRP_IMD_HANDLE, "Packet accepted");
 
+	LOG(IPRP_IMD_HANDLE, "Packet handled");
+
 	return 0;
 }

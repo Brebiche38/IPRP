@@ -82,7 +82,7 @@ int main(int argc, char const *argv[]) {
 	}
 	ERR("Cleanup thread unexpectedly finished execution", (int) return_value);
 
-	LOG("[ird] out of receive routine. This should not happen");
+	LOG(IPRP_IRD, "Last man standing at the end of the apocalypse");
 	return EXIT_FAILURE;
 }
 
@@ -141,7 +141,7 @@ void* cleanup_routine(void* arg) {
 				// Expired sender
 				list_elem_t *to_delete = iterator;
 				iterator = iterator->next;
-				list_delete(&active_senders, to_delete);
+				list_delete(&receiver_links, to_delete);
 				DEBUG(IPRP_IRD_CLEANUP, "Aged receiver");
 			} else {
 				// Good sender
@@ -189,6 +189,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 	// Lock the whole process to avoid concurrent cleanup work
 	list_lock(&receiver_links);
+	DEBUG(IPRP_IRD_HANDLE, "List locked");
 
 	// Find receiver link
 	iprp_receiver_link_t *packet_link = receiver_link_get(iprp_header);
@@ -202,6 +203,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		// Create receiver link
 		packet_link = receiver_link_create(iprp_header);
 		if (!packet_link) {
+			list_unlock(&receiver_links);
 			ERR("Unable to create receiver link", errno);
 		}
 		DEBUG(IPRP_IRD_HANDLE, "Receiver link created");
@@ -223,6 +225,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 	// The work on the link list is over now, we can allow cleanup work to resume
 	list_unlock(&receiver_links);
+	DEBUG(IPRP_IRD_HANDLE, "List unlocked");
 
 	if (fresh) {
 		// Fresh packet, tranfer to application
