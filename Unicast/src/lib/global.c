@@ -88,6 +88,8 @@ void list_delete(list_t *list, list_elem_t *elem) {
 	}
 
 	list->size--;
+
+	free(elem);
 }
 
 size_t list_size(list_t *list) {

@@ -22,28 +22,28 @@ list_t receiver_links;
 
 int imd_queue_id;
 
+pthread_t receive_thread;
 pthread_t cleanup_thread;
 
 int main(int argc, char const *argv[]) {
-	LOG("[ird] started");
+	int err;
+	
 	// Get arguments
 	int queue_id = atoi(argv[1]);
 	imd_queue_id = atoi(argv[2]);
+	DEBUG(IPRP_IRD, "Started");
 
 	// Setup nfqueue
 	handle = nfq_open();
 	if (!handle) {
 		ERR("Unable to open queue handle", IPRP_ERR_NFQUEUE);
 	}
-
 	if (nfq_unbind_pf(handle, AF_INET) < 0) {
 		ERR("Unable to unbind IP protocol from queue handle", IPRP_ERR_NFQUEUE);
 	}
-
 	if (nfq_bind_pf(handle, AF_INET) < 0) {
 		ERR("Unable to bind IP protocol to queue handle", IPRP_ERR_NFQUEUE);
 	}
-
 	queue = nfq_create_queue(handle, queue_id, handle_packet, NULL);
 	if (!queue) {
 		ERR("Unable to create queue", IPRP_ERR_NFQUEUE);
@@ -55,192 +55,217 @@ int main(int argc, char const *argv[]) {
 		ERR("Unable to set queue mode", IPRP_ERR_NFQUEUE);
 	}
 	queue_fd = nfq_fd(handle); // TODO check for error ?
+	DEBUG(IPRP_IRD, "NFQueue created");
 
-	LOG("[ird] nfqueue created");
+	// Launch receiving routine
+	if ((err = pthread_create(&receive_thread, NULL, receive_routine, NULL))) {
+		ERR("Unable to setup receive thread", err);
+	}
+	DEBUG(IPRP_IRD, "Receive thread created");
 
-	// Launch management routine
-	int err;
+	// Launch cleanup routine
 	if ((err = pthread_create(&cleanup_thread, NULL, cleanup_routine, NULL))) {
 		ERR("Unable to setup cleanup thread", err);
 	}
-	LOG("[ird] cleanup thread created");
+	DEBUG(IPRP_IRD, "Cleanup thread created");
 
-	// Launch receiving routine
-	receive_routine();
+	LOG(IPRP_IRD, "Receiver daemon successfully created");
+
+	// Join on threads (should not happen)
+	void* return_value;
+	if ((err = pthread_join(receive_thread, &return_value))) {
+		ERR("Unable to join on receive thread", err);
+	}
+	ERR("Cleanup thread unexpectedly finished execution", (int) return_value);
+	if ((err = pthread_join(cleanup_thread, &return_value))) {
+		ERR("Unable to join on cleanup thread", err);
+	}
+	ERR("Cleanup thread unexpectedly finished execution", (int) return_value);
 
 	LOG("[ird] out of receive routine. This should not happen");
 	return EXIT_FAILURE;
 }
 
-void receive_routine() {
-	LOG("[ird-receive] in routine");
+void* receive_routine(void* arg) {
+	DEBUG(IPRP_IRD_RECV, "In routine");
 
+	// Initialize link list
 	list_init(&receiver_links);
-	LOG("[ird-receive] Receiver links list initialized");
+	DEBUG(IPRP_IRD_RECV, "Receiver links list initialized");
 
+	// Handle packets from queue
 	int bytes;
 	char buf[IPRP_PACKET_BUFFER_SIZE];
-
 	while (true) {
 		if ((bytes = recv(queue_fd, buf, IPRP_PACKET_BUFFER_SIZE, 0)) == -1) {
 			if (errno == ENOBUFS) {
+				// The queue is dropping packets
 				// TODO add configuration to see if OK
-				LOG("[ird-receive] too many messages in queue");
+				LOG(IPRP_IRD_RECV, "Too many messages in queue");
 				continue;
 			}
 			ERR("Unable to read packet from queue", errno);
 		} else if (bytes == 0) {
 			// Receiver has performed an orderly shutdown.
 			// TODO Can this happen ? What if yes ?
-			LOG("[ird-receive] No bytes received");
+			DEBUG(IPRP_IRD_RECV, "No bytes received");
 		}
+		DEBUG(IPRP_IRD_RECV, "Received packet");
 
-		LOG("[ird-receive] received packet");
-
+		// Handle packet
 		int err;
 		if (err = nfq_handle_packet(handle, buf, IPRP_PACKET_BUFFER_SIZE)) {
 			//ERR("Error while handling packet", err); // TODO why?
 		}
-
-		LOG("[ird-receive] packet handled");
+		DEBUG(IPRP_IRD_RECV, "Packet handled");
 	}
-
-	LOG("[ird-receive] out of loop");
 }
 
-// TODO complete
-void *cleanup_routine(void* arg) {
-	LOG("[ird-cleanup] in routine");
+void* cleanup_routine(void* arg) {
+	DEBUG(IPRP_IRD_CLEANUP, "In routine");
 
-	while (true) {
-		LOG("[ird-cleanup] triggered");
-		sleep(IPRP_IRD_TCACHE);
+	while(true) {
+		// Sample time (for performance)
+		time_t curr_time = time(NULL);
+		DEBUG(IPRP_IRD_CLEANUP, "Sampled time");
+
+		// Delete aged entries
+		int count = 0;
+		list_elem_t *iterator = receiver_links.head;
+		while(iterator != NULL) {
+			// Fine grain lock to avoid blocking packet treatment for a long time
+			list_lock(&receiver_links);
+
+			iprp_receiver_link_t *as = (iprp_receiver_link_t*) iterator->elem;
+			if (curr_time - as->last_seen > IPRP_IRD_TEXP) {
+				// Expired sender
+				list_elem_t *to_delete = iterator;
+				iterator = iterator->next;
+				list_delete(&active_senders, to_delete);
+				DEBUG(IPRP_IRD_CLEANUP, "Aged receiver");
+			} else {
+				// Good sender
+				count++;
+				iterator = iterator->next;
+				DEBUG(IPRP_IRD_CLEANUP, "Fresh receiver");
+			}
+			list_unlock(&receiver_links);
+		}
+		DEBUG(IPRP_IRD_CLEANUP, "Deleted aged entries");
+
+		LOG(IPRP_IRD_CLEANUP, "Receiver links cleaned up");
+		sleep(IPRP_IRD_TCLEANUP);
 	}
-	return NULL;
 }
 
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
-	// Don't give a damn about message
-	LOG("[ird-handle] Handling packet");
+	DEBUG(IPRP_IRD_HANDLE, "Handling packet");
 
-	// 1. Get header and payload
+	// Get header
 	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr (packet); // TODO no error check in IPv6 version
 	if (!nfq_header) {
 		// TODO just let it go?
 		ERR("Unable to retrieve header from received packet", IPRP_ERR_NFQUEUE);
 	}
-	LOG("[ird-handle] Got header");
+	DEBUG(IPRP_IRD_HANDLE, "Got header");
 
-	unsigned char *buf;
+	// Get payload
 	int bytes;
+	unsigned char *buf;
 	if ((bytes = nfq_get_payload(packet, &buf)) == -1) {
 		// TODO just let it go ?
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);
 	}
-	LOG("[ird-handle] Got payload");
+	DEBUG(IPRP_IRD_HANDLE, "Got payload");
 
 	// Get payload headers
 	struct iphdr *ip_header = (struct iphdr *) buf; // TODO assert IP header length = 20 bytes
 	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr)); // TODO sizeof(uint32_t) * ip_header->ip_hdr_len
 	iprp_header_t *iprp_header = (iprp_header_t *) (buf + sizeof(struct iphdr) + sizeof(struct udphdr));
+	// if (iprp_header->version != IPRP_VERSION) {
+	// 	ERR("Received packet with wrong version", 0);
+	// }
+	DEBUG(IPRP_IRD_HANDLE, "Got packet headers");
 
-	if (iprp_header->version != IPRP_VERSION) {
-		// TODO leave him be
-		ERR("Received packet with wrong version", 0);
-	}
+	// Lock the whole process to avoid concurrent cleanup work
+	list_lock(&receiver_links);
 
-	LOG("[ird-handle] Got to interesting part");
-
-	// Phase 1 : query receiver links
-	iprp_receiver_link_t *packet_link = NULL;
-
-	list_elem_t *iterator = receiver_links.head;
-
-	while(iterator != NULL) {
-		iprp_receiver_link_t *link = (iprp_receiver_link_t *) iterator->elem;
-		bool same = true;
-
-		for (int i = 0; i < 20; ++i) {
-			if (link->snsid[i] != iprp_header->snsid[i]) {
-				same = false;
-				break;
-			}
-		}
-		if (same) {
-			packet_link = link;
-			break;
-		}
-		iterator = iterator->next;
-	}
-
-	LOG("[ird-handle] Got the packet link");
+	// Find receiver link
+	iprp_receiver_link_t *packet_link = receiver_link_get(iprp_header);
+	DEBUG(IPRP_IRD_HANDLE, "Got the packet link");
 
 	bool fresh;
+	if (!packet_link) {
+		// Unknown sender, we must create the link
+		DEBUG(IPRP_IRD_HANDLE, "Unknown sender");
 
-	if (!packet_link) { // TODO auxiliary function
-		LOG("[ird-handle] Creating receiver link");
-		// Create receiver link TODO check null
-		packet_link = malloc(sizeof(iprp_receiver_link_t));
-
-		memcpy(&packet_link->src_addr, &iprp_header->snsid, sizeof(struct in_addr));
-		memcpy(&packet_link->src_port, &iprp_header->snsid[16], sizeof(uint16_t));
-		packet_link->src_port = ntohs(packet_link->src_port);
-		memcpy(&packet_link->snsid, &iprp_header->snsid, 20);
-
-		for (int i = 0; i < IPRP_DD_MAX_LOST_PACKETS; ++i) {
-			packet_link->list_sn[i] = 0;
+		// Create receiver link
+		packet_link = receiver_link_create(iprp_header);
+		if (!packet_link) {
+			ERR("Unable to create receiver link", errno);
 		}
-		packet_link->high_sn = iprp_header->seq_nb;
-		packet_link->last_seen = time(NULL);
+		DEBUG(IPRP_IRD_HANDLE, "Receiver link created");
 
+		// Add to link list
 		list_append(&receiver_links, packet_link);
+		DEBUG(IPRP_IRD_HANDLE, "Receiver link added to list");
 
+		// As it is the first packet we see from this receiver, it is always fresh
 		fresh = true;
-
-		LOG("[ird-handle] Receiver link created");
 	} else {
-		LOG("[ird-handle] Known receiver link");
+		// Known sender, we apply the duplicate-discard algorithm
+		DEBUG(IPRP_IRD_HANDLE, "Known sender");
+
+		// Update the link and decide to keep or drop the packet
 		packet_link->last_seen = time(NULL);
 		fresh = is_fresh_packet(iprp_header, packet_link);
 	}
 
-	if (fresh) {
-		LOG("[ird-handle] Fresh packet received");
-		// Transfer packet to application
-		// Overwrite IPRP header with payload
+	// The work on the link list is over now, we can allow cleanup work to resume
+	list_unlock(&receiver_links);
 
+	if (fresh) {
+		// Fresh packet, tranfer to application
+		DEBUG(IPRP_IRD_HANDLE, "Fresh packet received");
+
+		// Get destination port from IPRP header
 		uint16_t dest_port = ntohs(iprp_header->dest_port);
 
+		// Move payload over IPRP header
 		memmove(iprp_header,
 			((char*) iprp_header) + sizeof(iprp_header_t),
 			bytes - sizeof(struct iphdr) - sizeof(struct udphdr) - sizeof(iprp_header_t));
 		
-		// Compute IP ckecksum
+		// Compute ckecksums
 		ip_header->tot_len = htons(bytes - sizeof(iprp_header_t));
 		ip_header->check = 0;
 		ip_header->check = ip_checksum(ip_header, sizeof(struct iphdr));
 
-		udp_header->dest = htons(dest_port);
+		udp_header->dest = htons(dest_port); // TODO source port as well ?
 		udp_header->len = htons(bytes - sizeof(struct iphdr) - sizeof(iprp_header_t));
-
-		// Compute UDP checksum (not mandatory)
 		udp_header->check = 0;
 		//udp_header->check = udp_checksum((uint16_t *) udp_header, bytes - sizeof(struct iphdr), ip_header->saddr, ip_header->daddr);
+		DEBUG(IPRP_IRD_HANDLE, "Packet ready to forward");
 
-		LOG("[ird-handle] Packet ready, setting verdict...");
-
-		// Forward packet to application
+		// Forward packet to IMD
 		int verdict = NF_QUEUE | (imd_queue_id << 16);
-
 		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), verdict, bytes - sizeof(iprp_header_t), buf) == -1) {
-			ERR("Unable to set verdict to NF_ACCEPT", IPRP_ERR_NFQUEUE);
+			ERR("Unable to set verdict to NF_QUEUE", IPRP_ERR_NFQUEUE);
 		}
+		DEBUG(IPRP_IRD_HANDLE, "Packet forwarded");
+
+		LOG(IPRP_IRD_HANDLE, "Fresh packet forwarded to application");
 	} else {
-		LOG("[ird-handle] Packet is not fresh, discarding");
+		// Duplicate packet, we drop it
+		DEBUG(IPRP_IRD_HANDLE, "Duplicate packet received");
+		
 		// Drop packet
 		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_DROP, bytes, buf) == -1) {
 			ERR("Unable to set verdict to NF_DROP", IPRP_ERR_NFQUEUE);
 		}
+		DEBUG(IPRP_IRD_HANDLE, "Packet dropped");
+
+		LOG(IPRP_IRD_HANDLE, "Duplicate packet dropped");
 	}
 
 	return 0;

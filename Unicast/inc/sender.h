@@ -8,8 +8,6 @@
 #ifndef __IPRP_SENDER_
 #define __IPRP_SENDER_
 
-// Sender-side control interface
-
 #include <time.h>
 #include <stdbool.h>
 
@@ -18,10 +16,6 @@
 // Begin cleaned up defines
 
 // End cleaned up defines
-
-#define IPRP_PEERBASE_MAX_SIZE (IPRP_PEERBASE_1STLINE_LENGTH + IPRP_MAX_IFACE * IPRP_PEERBASE_LINE_LENGTH)
-#define IPRP_PEERBASE_1STLINE_LENGTH 80
-#define IPRP_PEERBASE_LINE_LENGTH 80
 
 /* Structures */
 // Definitions : a link is attached to each sender deamon, each link has multiple paths over which the data is replicated
@@ -54,11 +48,5 @@ struct iprp_peerbase {
 int peerbase_store(const char* path, iprp_peerbase_t *base);
 int peerbase_load(const char* path, iprp_peerbase_t *base);
 void peerbase_print(iprp_peerbase_t *base);
-
-/*
- Peer base file format
- ?? 1st line: link description (maybe): identifier, dest IP, src/dest ports, queue id
- Next lines: 1 connection per line: IND, source IP ?, dest IP, interface name ? 
- */
 
 #endif /* __IPRP_SENDER_ */

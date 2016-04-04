@@ -1,10 +1,80 @@
 #include <stdbool.h>
 #include <stdio.h>
+// TODO include malloc, struct in_addr, ntohs, time, struct iphdr, memcpy
 
 #include "../../inc/ird.h"
 #include "../../inc/global.h"
 #include "../../inc/receiver.h"
 
+extern list_t receiver_links;
+
+/**
+Look for the SNSID of the given IPRP header in the list of links
+
+\param header The IPRP header we're looking for
+\return The corresponding receiver link, or NULL if none found
+*/
+iprp_receiver_link_t *receiver_link_get(iprp_header_t *header) {
+	iprp_receiver_link_t *packet_link = NULL;
+
+	// Look for SNSID in known receiver links
+	list_elem_t *iterator = receiver_links.head;
+	while(iterator != NULL) {
+		// Compare SNSIDs
+		iprp_receiver_link_t *link = (iprp_receiver_link_t *) iterator->elem;
+		bool same = true;
+		for (int i = 0; i < 20; ++i) {
+			if (link->snsid[i] != header->snsid[i]) {
+				same = false;
+				break;
+			}
+		}
+
+		// Found the link
+		if (same) {
+			packet_link = link;
+			break;
+		}
+
+		iterator = iterator->next;
+	}
+
+	return packet_link;
+}
+
+/**
+Create a receiver link structure with the given IPRP header.
+
+\param header The header containing information to create the link
+\return On success, the link is returned. On failure, NULL is returned and errno is set accordingly.
+*/
+iprp_receiver_link_t *receiver_link_create(iprp_header_t *header) {
+	iprp_receiver_link_t *packet_link = malloc(sizeof(iprp_receiver_link_t));
+	if (!packet_link) {
+		return NULL;
+	}
+
+	memcpy(&packet_link->src_addr, &header->snsid, sizeof(struct in_addr));
+	memcpy(&packet_link->src_port, &header->snsid[16], sizeof(uint16_t));
+	packet_link->src_port = ntohs(packet_link->src_port);
+	memcpy(&packet_link->snsid, &header->snsid, 20);
+
+	for (int i = 0; i < IPRP_DD_MAX_LOST_PACKETS; ++i) {
+		packet_link->list_sn[i] = 0;
+	}
+	packet_link->high_sn = header->seq_nb;
+	packet_link->last_seen = time(NULL);
+}
+
+/**
+Duplicate discard algorithm
+
+The algorithm determines if the given packet should be forwarded to the application or dropped
+
+\param packet The IPRP header of the packet to check
+\param link The receiver link structure containing the state information about the connection
+\return Whether the packet has to be forwarded or not
+*/
 bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link) {
 	// TODO resetCtr doesn't make sense...
 	if (packet->seq_nb == link->high_sn) {
@@ -49,6 +119,13 @@ bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link) {
 	}
 }
 
+/**
+Computes the IP checksum from an IP header
+
+\param header The IP header, with its checksum field set to 0
+\param len The length of the IP header in bytes
+\return The IP checksum
+*/
 uint16_t ip_checksum(struct iphdr *header, size_t len) {
 	uint32_t checksum = 0;
 	uint16_t *halfwords = (uint16_t *) header;
@@ -67,8 +144,16 @@ uint16_t ip_checksum(struct iphdr *header, size_t len) {
 	return (uint16_t) ~checksum;
 }
 
+/**
+Computes the UDP checksum from a UDP header and the given IP pseudo-header
+
+\param packet The entire UDP payload, with UDP ckhecksum field set to 0
+\param len The length of the payload in bytes
+\param src_addr The source IP address for the pseudo-header
+\param dest_addr The destination IP address for the pseudo-header
+\return The IP checksum
+*/
 uint16_t udp_checksum(uint16_t *packet, size_t len, uint32_t src_addr, uint32_t dest_addr) {
-	// TODO do
 	uint32_t checksum = 0;
 
 	// Pseudo-header

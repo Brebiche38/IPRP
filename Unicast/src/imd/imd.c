@@ -40,11 +40,11 @@ The role of the monitoring daemon is to check all incoming packets on the monito
 \return does not return
 */
 int main(int argc, char const *argv[]) {
-	DEBUG(IPRP_IMD, "Started");
 	int err;
 	
 	// Get arguments
 	int queue_id = atoi(argv[1]);
+	DEBUG(IPRP_IMD, "Started");
 
 	// Setup nfqueue
 	handle = nfq_open();
@@ -162,7 +162,6 @@ void* cleanup_routine(void* arg) {
 			list_lock(&active_senders);
 
 			iprp_active_sender_t *as = (iprp_active_sender_t*) iterator->elem;
-
 			if (curr_time - as->last_seen > IPRP_IMD_TEXP) {
 				// Expired sender
 				list_elem_t *to_delete = iterator;
@@ -204,8 +203,6 @@ The function creates an active sender entry if it is the first packet it sees fr
 \return 0 on success, -1 to end treatment of packets
 */
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
-	// TODO Check port, launch corresponding stuff
-		// Don't give a damn about message
 	DEBUG(IPRP_IMD_HANDLE, "Handling packet");
 
 	// Get packet NFQueue header
@@ -217,8 +214,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	DEBUG(IPRP_IMD_HANDLE, "Got header");
 
 	// Get packet payload
-	unsigned char *buf;
 	int bytes;
+	unsigned char *buf;
 	if ((bytes = nfq_get_payload(packet, &buf)) == -1) {
 		// TODO just let it go ?
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);

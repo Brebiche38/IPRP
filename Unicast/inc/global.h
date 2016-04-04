@@ -18,6 +18,7 @@
 // Begin cleaned up defines
 #define IPRP_PACKET_BUFFER_SIZE 4096
 #define IPRP_NFQUEUE_MAX_LENGTH 100
+#define IPRP_SNSID_SIZE 20
 // End cleaned up defines
 
 #define IPRP_VERSION 1
