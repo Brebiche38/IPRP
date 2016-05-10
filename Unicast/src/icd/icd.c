@@ -64,12 +64,14 @@ int main(int argc, char const *argv[]) {
 	int err;
 
 	// Manual setup (creation of this)
-	if (argc != 3) return -1;
-	this.ifaces[0].ind = 0x1;
-	inet_pton(AF_INET, argv[1], &this.ifaces[0].addr);
-	this.ifaces[1].ind = 0x2;
-	inet_pton(AF_INET, argv[2], &this.ifaces[1].addr);
-	this.nb_ifaces = 2;
+	if (argc < 2) return EXIT_FAILURE;
+	this.nb_ifaces = atoi(argv[1]);
+	if (this.nb_ifaces < 1 || this.nb_ifaces > IPRP_MAX_INDS || argc != this.nb_ifaces + 2) return EXIT_FAILURE;
+
+	for (int i = 0; i < this.nb_ifaces; ++i) {
+		this.ifaces[i].ind = i;
+		inet_pton(AF_INET, argv[i+2], &this.ifaces[i].addr);
+	}
 	DEBUG(IPRP_ICD, "Interface setup complete");
 
 	/* Phase 1: Setup */

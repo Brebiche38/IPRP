@@ -58,9 +58,9 @@ void peerbase_print(iprp_peerbase_t *base) {
 	printf("Receiver ID: %x, Queue ID: %d, ISD PID: %d, Last CAP: %d\n", base->link.receiver_id, base->link.queue_id, base->link.isd_pid, base->link.last_cap);
 	for (int i = 0; i < IPRP_MAX_INDS; ++i) {
 		if (base->paths[i].active) {
-			printf("Interface %x (active): from %x to %x\n", i, base->paths[i].iface.addr, base->paths[i].dest_addr);
+			printf("Interface %x (active): from %x to %x\n", i, base->paths[i].iface.addr.s_addr, base->paths[i].dest_addr.s_addr);
 		} else {
-			printf("Interface %x (inactive): from %x to %x\n", i, base->paths[i].iface.addr, base->paths[i].dest_addr);
+			printf("Interface %x (inactive): from %x to %x\n", i, base->paths[i].iface.addr.s_addr, base->paths[i].dest_addr.s_addr);
 		}
 	}
 }
