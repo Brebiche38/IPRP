@@ -8,15 +8,24 @@
 #ifndef __IPRP_ISD_
 #define __IPRP_ISD_
 
-// Begin cleaned up defines
+#include <stdbool.h>
+#include <pthread.h>
 
-// End cleaned up defines
+#include "global.h"
+#include "peerbase.h"
 
-#define IPRP_ISD_TCACHE 3
+#define IPRP_T_ISD_ALLOW 2
 
-void* send_routine(void* arg);
-void* cache_routine(void *arg);
-int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
-void cleanup();
+// Global structures
+typedef struct {
+	iprp_peerbase_t base;
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
+	bool loaded;
+} iprp_isd_peerbase_t;
+
+// Threads
+void* pb_routine(void* arg);
+void* handle_routine(void *arg);
 
 #endif /* __IPRP_ISD_ */

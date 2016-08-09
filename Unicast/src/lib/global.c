@@ -8,9 +8,17 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <pthread.h>
 
 #include "../../inc/global.h"
+
+void sockaddr_fill(struct sockaddr_in *sockaddr, struct in_addr addr, uint16_t port) {
+	sockaddr->sin_family = AF_INET;
+	sockaddr->sin_port = htons(port);
+	sockaddr->sin_addr = addr;
+	memset(sockaddr->sin_zero, 0, sizeof(sockaddr->sin_zero));
+}
 
 int compare_hosts(iprp_host_t *h1, iprp_host_t *h2) {
 	for (int i = 0; i < IPRP_MAX_IFACE; ++i) {
@@ -31,101 +39,38 @@ iprp_iface_t *get_iface_from_ind(iprp_host_t *host, iprp_ind_t ind) {
 	return NULL;
 }
 
-int ind_match(iprp_host_t *sender, iprp_host_t *receiver) {
-	int matching_inds = 0;
+iprp_ind_bitmap_t ind_match(iprp_host_t *sender, iprp_ind_bitmap_t receiver_inds) {
+	iprp_ind_bitmap_t sender_inds = 0;
 
 	for (int i = 0; i < sender->nb_ifaces; ++i) {
-		if (sender->ifaces[i].ind == receiver->ifaces[i].ind) {
-			matching_inds |= (1 << sender->ifaces[i].ind);
-		}
+		sender_inds |= (1 << sender->ifaces[i].ind);
 	}
 
-	return matching_inds;
+	return sender_inds & receiver_inds;
 }
 
-void list_init(list_t *list) {
-	list->head = NULL;
-	list->tail = NULL;
-	list->size = 0;
-	list->mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
-}
 
-void list_append(list_t *list, void* value) {
-	list_elem_t *new_elem = malloc(sizeof(list_elem_t));
-	if (!new_elem) {
-		ERR("Unable to allocate list element", errno);
-	}
-
-	new_elem->elem = value;
-	new_elem->next = NULL;
-	new_elem->prev = list->tail;
-
-	if (list->head == NULL) { // Implicitly, list->tail == NULL too
-		list->head = new_elem;
-	} else {
-		list->tail->next = new_elem;
-	}
-	list->tail = new_elem;
-
-	list->size++;
-}
-
-void list_delete(list_t *list, list_elem_t *elem) {
-	if (list->head == elem) {
-		list->head = elem->next;
-	}
-	if (list->tail == elem) {
-		list->tail = elem->prev;
-	}
-
-	// Global case
-	if (elem->next) {
-		elem->next->prev = elem->prev;
-	}
-	if (elem->prev) {
-		elem->prev->next = elem->next;
-	}
-
-	list->size--;
-
-	free(elem);
-}
-
-size_t list_size(list_t *list) {
-	return list->size;
-}
-
-void list_lock(list_t *list) {
-	pthread_mutex_lock(&list->mutex);
-}
-
-void list_unlock(list_t *list) {
-	pthread_mutex_unlock(&list->mutex);
-}
 
 char* iprp_thr_name(iprp_thread_t thread) {
 	switch(thread) {
-		case IPRP_ICD: return "icd";
-		case IPRP_ICD_CONTROL: return "icd-control";
-		case IPRP_ICD_RECV: return "icd-receiver";
-		case IPRP_ICD_SEND: return "icd-sender";
-		case IPRP_ICD_SENDCAP: return "icd-sendcap";
-		case IPRP_ICD_PORTS: return "icd-ports";
+		case ICD_MAIN: return "icd";
+		case ICD_CTL: return "icd-control";
+		case ICD_PORTS: return "icd-ports";
+		case ICD_AS: return "icd-as";
+		case ICD_PB: return "icd-pb";
+		case ICD_SI: return "icd-si";
 
-		case IPRP_ISD: return "isd";
-		case IPRP_ISD_SEND: return "isd-send";
-		case IPRP_ISD_CACHE: return "isd-cache";
-		case IPRP_ISD_HANDLE: return "isd-handle";
+		case ISD_MAIN: return "isd";
+		case ISD_HANDLE: return "isd-handle";
+		case ISD_PB: return "isd-pb";
 
-		case IPRP_IMD: return "imd";
-		case IPRP_IMD_MONITOR: return "imd-monitor";
-		case IPRP_IMD_CLEANUP: return "imd-cleanup";
-		case IPRP_IMD_HANDLE: return "imd-handle";
+		case IMD_MAIN: return "imd";
+		case IMD_HANDLE: return "imd-handle";
+		case IMD_AS: return "imd-as";
 
-		case IPRP_IRD: return "ird";
-		case IPRP_IRD_RECV: return "ird-recv";
-		case IPRP_IRD_CLEANUP: return "ird-cleanup";
-		case IPRP_IRD_HANDLE: return "ird-handle";
+		case IRD_MAIN: return "ird";
+		case IRD_HANDLE: return "ird-handle";
+		case IRD_SI: return "ird-si";
 
 		default: return "???";
 	}	

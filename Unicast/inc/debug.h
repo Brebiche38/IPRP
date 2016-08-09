@@ -13,7 +13,11 @@
 
 // Errors
 enum {
+	IPRP_ERR = 1,
+	IPRP_ERR_MALLOC,
 	IPRP_ERR_NOINIT,
+	IPRP_ERR_UNKNOWN,
+	IPRP_ERR_EMPTY,
 	IPRP_ERR_NULLPTR,
 	IPRP_ERR_BADFORMAT,
 	IPRP_ERR_LOOKUPFAIL,
@@ -25,56 +29,54 @@ enum {
 
 // Threads
 typedef enum {
-	IPRP_ICD = (1 << 0),
-	IPRP_ICD_CONTROL = (1 << 1),
-	IPRP_ICD_RECV = (1 << 2),
-	IPRP_ICD_SEND = (1 << 3),
-	IPRP_ICD_SENDCAP = (1 << 4),
-	IPRP_ICD_PORTS = (1 << 5),
+	ICD_MAIN = (1 << 0),
+	ICD_CTL = (1 << 1),
+	ICD_PORTS = (1 << 2),
+	ICD_PB = (1 << 3),
+	ICD_AS = (1 << 4),
+	ICD_SI = (1 << 5),
 
-	IPRP_ISD = (1 << 8),
-	IPRP_ISD_SEND = (1 << 9),
-	IPRP_ISD_CACHE = (1 << 10),
-	IPRP_ISD_HANDLE = (1 << 11),
+	ISD_MAIN = (1 << 8),
+	ISD_PB = (1 << 9),
+	ISD_HANDLE = (1 << 10),
 
-	IPRP_IMD = (1 << 16),
-	IPRP_IMD_MONITOR = (1 << 17),
-	IPRP_IMD_CLEANUP = (1 << 18),
-	IPRP_IMD_HANDLE = (1 << 19),
+	IMD_MAIN = (1 << 16),
+	IMD_AS = (1 << 17),
+	IMD_HANDLE = (1 << 18),
 
-	IPRP_IRD = (1 << 24),
-	IPRP_IRD_RECV = (1 << 25),
-	IPRP_IRD_CLEANUP = (1 << 26),
-	IPRP_IRD_HANDLE = (1 << 27),
+	IRD_MAIN = (1 << 24),
+	IRD_SI = (1 << 25),
+	IRD_HANDLE = (1 << 26),
 } iprp_thread_t;
 
 char* iprp_thr_name(iprp_thread_t thread);
 
 // Debugging
-#define DEBUG_INFO
+#define DEBUG_FULL
 
-#define MSG(thread, msg) \
-	printf("[%s] ", iprp_thr_name(thread)); \
-	printf("%s\n", msg);
+#define MSG(...) \
+	printf("[%s] ", iprp_thr_name(IPRP_FILE)); \
+	printf(__VA_ARGS__); \
+	printf("\n");
 
 #ifdef DEBUG_NONE
-	#define LOG(thread, msg) {}
-	#define DEBUG(thread, msg) {}
+	#define LOG(...) {}
+	#define DEBUG(...) {}
 #endif
 
 #ifdef DEBUG_INFO
-	#define LOG(thread, msg) MSG(thread, msg)
-	#define DEBUG(thread, msg) {}
+	#define LOG(...) MSG(__VA_ARGS__)
+	#define DEBUG(...) {}
 #endif
 
 #ifdef DEBUG_FULL
 	// Threads needing debugging (flags)
-	#define DEBUG_THREADS (IPRP_IRD_HANDLE | IPRP_IRD_CLEANUP)
+	#define DEBUG_THREADS (-1) //ISD_MAIN | ISD_HANDLE | ISD_PB)
 
-	#define LOG(thread, msg) MSG(thread, msg)
+	#define LOG(...) MSG(__VA_ARGS__)
 
-	#define DEBUG(thread, msg) \
-		if (thread & DEBUG_THREADS) { MSG(thread, msg) } else {}
+	#define DEBUG(...) \
+		if (IPRP_FILE & DEBUG_THREADS) { MSG(__VA_ARGS__) } else {}
 #endif
 
 #endif /* __IPRP_DEBUG_ */

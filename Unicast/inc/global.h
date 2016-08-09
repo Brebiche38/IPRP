@@ -12,11 +12,14 @@
 #include <netinet/in.h>
 #include <stdint.h>
 #include <pthread.h>
+//#include <linux/ip.h>
+#include <linux/netfilter.h>
+#include <libnetfilter_queue/libnetfilter_queue.h>
 
 #include "debug.h"
 
 // Begin cleaned up defines
-#define IPRP_PACKET_BUFFER_SIZE 4096
+#define IPRP_PKTBUF_SIZE 4096
 #define IPRP_NFQUEUE_MAX_LENGTH 100
 #define IPRP_SNSID_SIZE 20
 // End cleaned up defines
@@ -26,7 +29,7 @@
 #define IPRP_MAX_SENDERS 64
 #define IPRP_CTL_PORT 1000
 #define IPRP_DATA_PORT 1001
-#define IPRP_MAX_IFACE 4
+#define IPRP_MAX_IFACE 4 // TODO MAX_IFACE = MAX_INDS (one-to-one)
 #define IPRP_MAX_INDS 16
 #define IPRP_PATH_LENGTH 50
 
@@ -39,10 +42,12 @@
 #define IPRP_MONITORED_PORTS_FILE "ports.txt"
 #define IPRP_MAX_MONITORED_PORTS 16
 #define IPRP_TPORT 3
+#define IPRP_DSCP_MASK (1 << 2)
 
 
 typedef uint32_t iprp_version_t;
 typedef uint8_t iprp_ind_t;
+typedef uint16_t iprp_ind_bitmap_t;
 typedef struct iprp_ctlmsg iprp_ctlmsg_t;
 typedef struct iprp_capmsg iprp_capmsg_t;
 typedef struct iprp_ackmsg iprp_ackmsg_t;
@@ -65,21 +70,48 @@ struct iprp_host {
 	iprp_iface_t ifaces[IPRP_MAX_IFACE];
 };
 
+typedef struct {
+	struct in_addr src_addr;
+	struct in_addr dest_addr;
+	uint16_t src_port;
+	uint16_t dest_port;
+	char snsid[20];
+} iprp_link_t;
+
+typedef struct {
+	struct nfq_handle *handle;
+	struct nfq_q_handle *queue;
+	int fd;
+} iprp_queue_t;
+
 enum iprp_msgtype {
 	IPRP_CAP,
 	IPRP_ACK
 };
 
+/*
 struct iprp_capmsg {
 	iprp_version_t iprp_version;
 	iprp_host_t receiver;
 	uint16_t src_port; // Source port of the UDP packet that triggered the CAP message
 	uint16_t dest_port; // Dest port of the UDP packet that triggered the CAP message
 };
+*/
+
+struct iprp_capmsg {
+	iprp_version_t iprp_version;
+	struct in_addr group_addr;
+	struct in_addr src_addr;
+	iprp_ind_bitmap_t inds;
+	uint16_t src_port;
+	uint16_t dest_port;
+};
 
 // Not unicast
 struct iprp_ackmsg {
-	/* TODO */
+	iprp_host_t host;
+	struct in_addr group_addr;
+	struct in_addr src_addr;
 };
 
 struct iprp_ctlmsg {
@@ -102,7 +134,15 @@ struct iprp_header {
 
 int compare_hosts(iprp_host_t *h1, iprp_host_t *h2);
 iprp_iface_t *get_iface_from_ind(iprp_host_t *host, iprp_ind_t ind);
-int ind_match(iprp_host_t *sender, iprp_host_t *receiver);
+iprp_ind_bitmap_t ind_match(iprp_host_t *sender, iprp_ind_bitmap_t receiver_inds);
+void sockaddr_fill(struct sockaddr_in *sockaddr, struct in_addr addr, uint16_t port);
+
+// NFQueue
+int queue_setup(iprp_queue_t *nfq, int queue_id, nfq_callback *callback);
+int get_and_handle(struct nfq_handle *handle, int queue_fd);
+
+// Time
+void *time_routine(void* arg);
 
 /* List structure */
 typedef struct list list_t;
