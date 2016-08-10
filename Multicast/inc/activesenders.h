@@ -8,10 +8,12 @@
 #ifndef __IPRP_RECEIVER_
 #define __IPRP_RECEIVER_
 
+#include <stdbool.h>
+
 #include "global.h"
 
 // Begin cleaned up defines
-#define IPRP_ACTIVESENDERS_FILE "files/activesenders.iprp"
+#define IPRP_AS_FILE "files/activesenders.iprp"
 // End cleaned up defines
 
 /**
@@ -28,14 +30,14 @@ IMD: updates keep-alive, deletes aged entries (deletion can be periodical, updat
 IRD: nothing
 */
 
-typedef struct iprp_active_sender iprp_active_sender_t;
-
-struct iprp_active_sender {
+typedef struct {
 	struct in_addr src_addr;
+	struct in_addr dest_group;
 	uint16_t src_port;
 	uint16_t dest_port;
 	time_t last_seen;
-};
+	bool iprp_enabled;
+} iprp_active_sender_t;
 
 void activesenders_store(const char* path, const int count, const iprp_active_sender_t* senders);
 int activesenders_load(const char *path, int* count, iprp_active_sender_t** senders);
