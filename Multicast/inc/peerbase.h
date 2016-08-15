@@ -1,8 +1,7 @@
-/**\file sender.h
- * Header file for lib/sender.c
+/**\file peerbase.h
+ * Header file for peerbase-related stuff
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
- * \version alpha
  */
 
 #ifndef __IPRP_SENDER_
@@ -13,8 +12,15 @@
 #define IPRP_PEERBASE_PATH_LENGTH 57
 #define IPRP_T_PB_CACHE 3
 
-/* Structures */
-typedef struct iprp_peerbase {
+/**
+ The peerbase is the medium of communication between the ICD and the ISDs.
+ Each instance of the ISD has its own peerbase.
+ The ICD writes the information it gets from the CAP messages it receives into the peerbase.
+ The ISD reads this data and configures its outgoing interfaces accordingly.
+*/
+
+/* Peerbase structure */
+typedef struct {
 	iprp_link_t link;
 	iprp_host_t host;
 	iprp_ind_bitmap_t inds;

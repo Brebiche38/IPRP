@@ -2,7 +2,6 @@
  * Debugging definitions
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
- * \version alpha
  */
 
 #ifndef __IPRP_DEBUG_
@@ -71,7 +70,7 @@ char* iprp_thr_name(iprp_thread_t thread);
 
 #ifdef DEBUG_FULL
 	// Threads needing debugging (flags)
-	#define DEBUG_THREADS (-1) //ISD_MAIN | ISD_HANDLE | ISD_PB)
+	#define DEBUG_THREADS (-1)
 
 	#define LOG(...) MSG(__VA_ARGS__)
 

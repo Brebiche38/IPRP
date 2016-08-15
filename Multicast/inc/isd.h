@@ -2,7 +2,6 @@
  * Header file for ISD
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
- * \version alpha
  */
 
 #ifndef __IPRP_ISD_
@@ -16,7 +15,7 @@
 
 #define IPRP_T_ISD_ALLOW 2
 
-// Global structures
+/* ISD structure */
 typedef struct {
 	iprp_peerbase_t base;
 	pthread_mutex_t mutex;
@@ -24,7 +23,7 @@ typedef struct {
 	bool loaded;
 } iprp_isd_peerbase_t;
 
-// Threads
+/* Threads routines */
 void* pb_routine(void* arg);
 void* handle_routine(void *arg);
 

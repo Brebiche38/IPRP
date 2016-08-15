@@ -1,45 +1,41 @@
-/**\file receiver.h
- * Header file for lib/receiver.c
+/**\file activesenders.h
+ * Header file for active senders file-related stuff
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
- * \version alpha
  */
 
-#ifndef __IPRP_RECEIVER_
-#define __IPRP_RECEIVER_
+#ifndef __IPRP_ACTIVESENDERS_
+#define __IPRP_ACTIVESENDERS_
 
 #include <stdbool.h>
+#include <stdint.h>
+#include <netinet/ip.h>
 
 #include "global.h"
 
-// Begin cleaned up defines
 #define IPRP_AS_FILE "files/activesenders.iprp"
-// End cleaned up defines
 
 /**
-2 files: active senders (shared receiver-side) and monitored ports (ICD only)
-
-Monitored ports: read-only (except startup?). From ICD. No caching.
-On add: add rule to IMD queue. On delete: remove rule to IMD queue.
-First add -> create IMD/IRD
-Count to 0 -> delete IMD/IRD
-
-Active senders: internal to iPRP, holds src_addr, src_port, (dest_port?), last seen
-ICD: retrieves to send CAPs (read-only, no latency requirements)
-IMD: updates keep-alive, deletes aged entries (deletion can be periodical, update must be fast -> caching)
-IRD: nothing
+ The active sender file is the communication medium between the IMD and ICD.
+ The IMD fills the file according to the packets it receives (from the IRD or the internet directly).
+ The ICD retrieves the information contained in the file and uses it to send CAP messages to the relevant senders.
 */
 
+/* Entry structure */
 typedef struct {
+	// Link information
 	struct in_addr src_addr;
 	struct in_addr dest_group;
 	uint16_t src_port;
 	uint16_t dest_port;
+
+	// Status values
 	time_t last_seen;
 	bool iprp_enabled;
 } iprp_active_sender_t;
 
+/* Disk functions */
 void activesenders_store(const char* path, const int count, const iprp_active_sender_t* senders);
 int activesenders_load(const char *path, int* count, iprp_active_sender_t** senders);
 
-#endif /* __IPRP_RECEIVER_ */
+#endif /* __IPRP_ACTIVESENDERS_ */

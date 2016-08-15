@@ -20,25 +20,6 @@ void sockaddr_fill(struct sockaddr_in *sockaddr, struct in_addr addr, uint16_t p
 	memset(sockaddr->sin_zero, 0, sizeof(sockaddr->sin_zero));
 }
 
-int compare_hosts(iprp_host_t *h1, iprp_host_t *h2) {
-	for (int i = 0; i < IPRP_MAX_IFACE; ++i) {
-		if (h1->ifaces[i].addr.s_addr != h2->ifaces[i].addr.s_addr || h1->ifaces[i].ind != h2->ifaces[i].ind) {
-			return 0;
-		}
-	}
-	return 1;
-}
-
-iprp_iface_t *get_iface_from_ind(iprp_host_t *host, iprp_ind_t ind) {
-	for (int i = 0; i < host->nb_ifaces; ++i) {
-		if (host->ifaces[i].ind == ind) {
-			return &host->ifaces[i];
-		}
-	}
-
-	return NULL;
-}
-
 iprp_ind_bitmap_t ind_match(iprp_host_t *sender, iprp_ind_bitmap_t receiver_inds) {
 	iprp_ind_bitmap_t sender_inds = 0;
 
@@ -47,9 +28,7 @@ iprp_ind_bitmap_t ind_match(iprp_host_t *sender, iprp_ind_bitmap_t receiver_inds
 	}
 
 	return sender_inds & receiver_inds;
-}
-
-
+}å
 
 char* iprp_thr_name(iprp_thread_t thread) {
 	switch(thread) {
