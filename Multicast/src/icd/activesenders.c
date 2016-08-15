@@ -1,3 +1,8 @@
+/**\file icd/activesenders.c
+ * Active sender handler for the ICD side
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE ICD_AS
 
 #include <errno.h>
@@ -10,20 +15,17 @@
 
 extern time_t curr_time;
 
-// Function prototypes
+/* Function prototypes */
 int get_active_senders(iprp_active_sender_t **senders);
-int send_cap(iprp_active_sender_t *sender, int socket);
+void send_cap(iprp_active_sender_t *sender, int socket);
 int backoff();
 
 /**
-Sends CAP messages to the active senders
-
-The sendcap routine first sets up a socket to send messages. It then sends CAP
-messages every TCAP seconds to all senders currently present in the list of
-active senders.
-
-\param none
-\return does not return
+ Sends CAP messages to the active senders
+ 
+ The active senders routine initializes the active sender file (to avoid reading an unexisting file).
+ It then sets up a socket to send the CAP messages.
+ Then periodically after a backoff period, it sends CAP messages to all active senders.
 */
 void* as_routine(void* arg) {
 	DEBUG("In routine");
@@ -57,6 +59,9 @@ void* as_routine(void* arg) {
 	}
 }
 
+/**
+ Reads active senders from file
+*/
 int get_active_senders(iprp_active_sender_t **senders) {
 	int count;
 	int err;
@@ -67,7 +72,10 @@ int get_active_senders(iprp_active_sender_t **senders) {
 	return count;
 }
 
-int send_cap(iprp_active_sender_t *sender, int socket) {
+/**
+ Creates and sends a CAP message to a given sender
+*/
+void send_cap(iprp_active_sender_t *sender, int socket) {
 	// Create message
 	iprp_ctlmsg_t msg;
 	msg.secret = IPRP_CTLMSG_SECRET;
@@ -83,11 +91,12 @@ int send_cap(iprp_active_sender_t *sender, int socket) {
 	struct sockaddr_in addr;
 	sockaddr_fill(&addr, sender->src_addr, IPRP_CTL_PORT);
 	sendto(socket, (void*) &msg, sizeof(msg), 0, (struct sockaddr*) &addr, sizeof(addr));
-
-	return 0;
 }
 
 // TODO really the good algorithm?
+/**
+ Computes the time to wait before sending the next round of CAPs
+*/
 int backoff() {
 	srand(curr_time);
 	double random = 0.0;

@@ -1,3 +1,8 @@
+/**\file icd/control.c
+ * Control message handler
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE ICD_CTL
 
 #include <errno.h>
@@ -22,7 +27,7 @@ extern list_t peerbases;
 
 uint16_t reboot_counter = 0;
 
-// Function prototypes
+/* Function prototypes */
 void handle_ack(iprp_ackmsg_t *msg);
 void handle_cap(iprp_capmsg_t *msg, struct sockaddr_in *source);
 int send_ack(int socket, iprp_link_t *link);
@@ -36,14 +41,10 @@ uint16_t get_queue_number();
 pid_t isd_startup();
 
 /**
-Dispatcher for control messages
-
-The control routine listens on the iPRP control port and forwards the received
-packets to the sender side if it is a CAP message, or to the receiver side if
-it is an ACK message. The routine drops any unrecognized packet.
-
-\param none
-\return does not return
+ Dispatch incoming control messages
+ 
+ The control routine first sets up the control socket.
+ It then listens on the socket, and forwards the messages it receives to the corresponding handler.
 */
 void* control_routine(void *arg) {
 	DEBUG("In routine");
@@ -82,6 +83,12 @@ void* control_routine(void *arg) {
 	}
 }
 
+// TODO check
+/**
+ Handle incoming ACK messages
+
+ For each received ACK message, the handler extracts the sender interfaces information.
+*/
 void handle_ack(iprp_ackmsg_t *msg) {
 	struct in_addr addr;
 
@@ -100,6 +107,12 @@ void handle_ack(iprp_ackmsg_t *msg) {
 	LOG("ACK message handled");
 }
 
+/**
+ Handle incoming CAP messages
+
+ For each received CAP message, the handler updates or creates the corresponding peerbase.
+ It then sends an ACK message in response.
+*/
 void handle_cap(iprp_capmsg_t *msg, struct sockaddr_in *source) {
 	list_lock(&peerbases);
 	// Query peer base for source
@@ -144,6 +157,9 @@ void handle_cap(iprp_capmsg_t *msg, struct sockaddr_in *source) {
 	LOG("CAP message handled");
 }
 
+/**
+ Sends an ACK message
+*/
 int send_ack(int socket, iprp_link_t *link) {
 	// Create message
 	iprp_ctlmsg_t msg;
@@ -163,7 +179,9 @@ int send_ack(int socket, iprp_link_t *link) {
 
 	return 0;
 }
-
+/**
+ Creates and sets up the control socket
+*/
 int socket_setup() {
 	int ctl_socket;
 
@@ -193,6 +211,9 @@ int socket_setup() {
 	return ctl_socket;
 }
 
+/**
+ Looks up the peerbases for one corresponding to the given CAP message
+*/
 iprp_icd_base_t *peerbase_query(iprp_capmsg_t *msg) {
 	list_elem_t *iterator = peerbases.head;
 
@@ -208,6 +229,9 @@ iprp_icd_base_t *peerbase_query(iprp_capmsg_t *msg) {
 	return NULL;
 }
 
+/**
+ Looks up the sender interfaces for one corresponding to the given information
+*/
 bool in_sender_ifaces(struct in_addr group_addr, struct in_addr src_addr) {
 	list_elem_t *iterator = sender_ifaces.head;
 	while (iterator != NULL) {
@@ -225,6 +249,9 @@ bool in_sender_ifaces(struct in_addr group_addr, struct in_addr src_addr) {
 	return false;
 }
 
+/**
+ Creates the sender interfaces entry for the given ACK message
+*/
 iprp_sender_ifaces_t *create_sender_ifaces(iprp_ackmsg_t *msg) {
 	iprp_sender_ifaces_t *new_sender = malloc(sizeof(iprp_sender_ifaces_t));
 	if (!new_sender) {
@@ -248,6 +275,9 @@ iprp_sender_ifaces_t *create_sender_ifaces(iprp_ackmsg_t *msg) {
 	return new_sender;
 }
 
+/**
+ Creates the peerbase for the given CAP message
+*/
 iprp_icd_base_t *create_base(iprp_capmsg_t *msg, iprp_ind_bitmap_t matching_inds) {
 	iprp_icd_base_t *base = malloc(sizeof(iprp_icd_base_t));
 	if (!base) {
@@ -269,6 +299,9 @@ iprp_icd_base_t *create_base(iprp_capmsg_t *msg, iprp_ind_bitmap_t matching_inds
 	return base;
 }
 
+/**
+ Fills in the SNSID for a given link
+*/
 void snsid(iprp_link_t *link) {
 	for (int i = 0; i < 16/sizeof(link->dest_addr); ++i) {
 		memcpy(&link->snsid[4*i], &link->dest_addr, sizeof(link->dest_addr));
@@ -278,7 +311,11 @@ void snsid(iprp_link_t *link) {
 	reboot_counter++;
 }
 
-uint16_t get_queue_number() { // TODO better ?
+// TODO better ?
+/**
+ Returns an unused netfilter queue number
+*/
+uint16_t get_queue_number() {
 	bool ok = false;
 	uint16_t num;
 

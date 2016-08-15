@@ -1,3 +1,8 @@
+/**\file icd/ports.c
+ * Monitored ports handling
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE ICD_PORTS
 
 #include <errno.h>
@@ -10,7 +15,7 @@
 
 #include "icd.h"
 
-// Function prototypes
+/* Function prototypes */
 size_t get_monitored_ports(uint16_t **table);
 bool find_port_in_array(uint16_t port, uint16_t* array, size_t array_size);
 bool find_port_in_list(uint16_t port, list_t *list);
@@ -20,6 +25,13 @@ pid_t imd_launch(uint16_t queue_num, uint16_t ird_queue_num);
 void ird_shutdown();
 void imd_shutdown();
 
+/**
+ Caches the monitored ports file and the IMD and IRD
+
+ The routine periodically reads the monitored ports file.
+ It updates its internal monitored ports list accordingly.
+ If needed, it then launches or shuts down the IRD and IMD.
+*/
 void* ports_routine(void* arg) {
 	iprp_icd_recv_queues_t *queue_nums = (iprp_icd_recv_queues_t *) arg;
 	DEBUG("In routine");
@@ -104,6 +116,9 @@ void* ports_routine(void* arg) {
 	}
 }
 
+/**
+ Reads the monitored ports from the file
+*/
 size_t get_monitored_ports(uint16_t **table) {
 	// Get file descriptor
 	FILE* ports_file = fopen(IPRP_MONITORED_PORTS_FILE, "r");
@@ -135,6 +150,9 @@ size_t get_monitored_ports(uint16_t **table) {
 	return num_ports;
 }
 
+/**
+ Returns whether the given port is contained in the given array
+*/
 bool find_port_in_array(uint16_t port, uint16_t* array, size_t array_size) {
 	for (int i = 0; i < array_size; ++i) {
 		if (port == array[i]) {
@@ -144,6 +162,9 @@ bool find_port_in_array(uint16_t port, uint16_t* array, size_t array_size) {
 	return false;
 }
 
+/**
+ Returns whether the given list contains the given port
+*/
 bool find_port_in_list(uint16_t port, list_t *list) {
 	list_elem_t *iterator = list->head;
 	while(iterator != NULL) {
@@ -156,12 +177,18 @@ bool find_port_in_list(uint16_t port, list_t *list) {
 	return false;
 }
 
+/**
+ Creates or deletes an iptables rule redirecting all traffic through the given port to the given queue
+*/
 void iptables_rule(uint16_t port, uint16_t queue_num, bool create) {
 	char buf[100];
 	snprintf(buf, 100, "sudo iptables -t mangle -%s PREROUTING -p udp --dport %d -j NFQUEUE --queue-num %d", create ? "A" : "D", port, queue_num);
 	system(buf);
 }
 
+/**
+ Launches the IRD
+*/
 pid_t ird_launch(uint16_t queue_num, uint16_t imd_queue_num) {
 	pid_t pid = fork();
 	if (!pid) { // Child side
@@ -183,6 +210,9 @@ pid_t ird_launch(uint16_t queue_num, uint16_t imd_queue_num) {
 	}
 }
 
+/**
+ Launches the IMD
+*/
 pid_t imd_launch(uint16_t queue_num, uint16_t ird_queue_num) {
 	pid_t pid = fork();
 	if (!pid) { // Child side

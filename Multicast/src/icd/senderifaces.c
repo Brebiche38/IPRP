@@ -1,3 +1,8 @@
+/**\file icd/senderifaces.c
+ * Active sender handler for the ICD side
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE ICD_SI
 
 #include <errno.h>
@@ -9,12 +14,19 @@
 
 extern time_t curr_time;
 
+/* Sender interfaces cache */
 list_t sender_ifaces;
 
-// Function prototypes
+/* Function prototypes */
 int count_and_cleanup();
 iprp_sender_ifaces_t *get_file_contents();
 
+/**
+ Pushes the sender interfaces information to the IRD
+
+ The sender interfaces routine periodically deletes the aged entries in its cache (modified by the control routine).
+ It then pushes the changes to the disk, where it can be retrieved by the IRD.
+*/
 void *si_routine(void *arg) {
 	DEBUG("In routine");
 
@@ -39,6 +51,9 @@ void *si_routine(void *arg) {
 	}
 }
 
+/**
+ Deletes aged entries and returns the number of valid entries in the list
+*/
 int count_and_cleanup() {
 	int count = 0;
 	list_elem_t *iterator = sender_ifaces.head;
@@ -65,6 +80,9 @@ int count_and_cleanup() {
 	return count;
 }
 
+/**
+ Creates the data to be pushed to the disk
+*/
 iprp_sender_ifaces_t *get_file_contents(int count) {
 	iprp_sender_ifaces_t *entries = calloc(count, sizeof(iprp_sender_ifaces_t));
 	if (!entries) {

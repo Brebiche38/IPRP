@@ -1,10 +1,9 @@
-#define IPRP_FILE ICD_MAIN
 /**\file icd.c
- * Control flow of the Control Daemon
+ * iPRP Control Daemon
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
- * \version alpha
  */
+#define IPRP_FILE ICD_MAIN
 
 #include <stdlib.h>
 #include <time.h>
@@ -25,18 +24,11 @@ pthread_t time_thread;
 iprp_host_t this; /** Information about the current machine */
 
 /**
-Control daemon entry point
+ Control daemon entry point
 
-The main() function's role is to setup the environment for the control,
-receiver and sender routines, which are the three main routines of the control
-daemon. The function processes the command-line arguments and creates the
-control socket used to receive control messages from other hosts (in the
-control routine), as well as the pipes used to transmit those messages to the
-sender or receiver daemons, acconrding to need. The function then launches the
-sender and receiver threads and executes the control routine itself.
-
-\param TBD
-\return does not return 
+ The ICD first parses the arguments given to it to create the structure representing the current host.
+ It then assigns the specific receiver-side netfilter queue numbers to transmit to the IRD and IMD.
+ It finally launches all the ICD routines and then waits forever.
 */
 int main(int argc, char const *argv[]) {
 	DEBUG("In routine");

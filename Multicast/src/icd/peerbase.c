@@ -1,3 +1,8 @@
+/**\file icd/peerbase.c
+ * Peerbase handler for the ICD side
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE ICD_PB
 
 #include <errno.h>
@@ -12,12 +17,21 @@
 extern time_t curr_time;
 extern iprp_host_t this;
 
+/* Peerbase cache */
 list_t peerbases;
 
-// Function prototypes
+/* Function prototypes */
 void create_peerbase(iprp_peerbase_t* peerbase, iprp_icd_base_t *base);
 pid_t isd_startup(iprp_icd_base_t *base);
 
+/**
+ Pushes changes to known peerbases to the ISDs
+
+ The peerbase routine is executed periodically.
+ It first deletes aged, inactive senders.
+ It then stores the other peerbases to the disk, allowing the corresponding ISDs to update.
+ If necessary, it starts the corresponding ISDs up.
+*/
 void *pb_routine(void *arg) {
 	list_init(&peerbases);
 	DEBUG("Peerbases initialized");
@@ -76,17 +90,21 @@ void *pb_routine(void *arg) {
 	}
 }
 
+/**
+ Fills a peerbase structure with an ICD-specific peerbase
+*/
 void create_peerbase(iprp_peerbase_t* peerbase, iprp_icd_base_t *base) {
 	peerbase->link = base->link;
 	peerbase->host = this;
 	peerbase->inds = base->inds;
 }
 
+/**
+ Start an ISD for the given base
+*/
 pid_t isd_startup(iprp_icd_base_t *base) {
 	pid_t pid = fork();
-	if (!pid) {
-		// Child side
-
+	if (!pid) { // Child side
 		// Create NFqueue
 		char dest_group[INET_ADDRSTRLEN];
 		inet_ntop(AF_INET, &base->link.dest_addr, dest_group, INET_ADDRSTRLEN);
