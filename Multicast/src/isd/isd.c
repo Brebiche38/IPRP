@@ -1,3 +1,8 @@
+/**\file isd.c
+ * iPRP Sender Daemon
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE ISD_MAIN
 
 #include <errno.h>
@@ -6,7 +11,7 @@
 #include "isd.h"
 #include "peerbase.h"
 
-// Global variables
+/* Global variables */
 int sockets[IPRP_MAX_INDS];
 iprp_isd_peerbase_t pb = {
 	.mutex = PTHREAD_MUTEX_INITIALIZER,
@@ -14,9 +19,16 @@ iprp_isd_peerbase_t pb = {
 	.loaded = false
 };
 
-// Local functions
+/* Function prototypes */
 int create_socket();
 
+/**
+ Sender daemon entry point
+
+ The ISD first gets its queue and peerbase path from its arguments.
+ It then creates the sockets it will use to send iPRP packets.
+ It finally launches the needed routines and waits forever.
+*/
 int main(int argc, char const *argv[]) {
 	// Thread variables
 	pthread_t pb_thread;
@@ -34,11 +46,6 @@ int main(int argc, char const *argv[]) {
 	for (int i = 0; i < IPRP_MAX_INDS; ++i) {
 		if ((sockets[i] = create_socket()) < 0) {
 			ERR("Unable to setup socket", errno);
-		}
-
-		char ttl = 255;
-		if ((setsockopt(sockets[i], IPPROTO_IP, IP_MULTICAST_TTL, (void*) &ttl, sizeof(ttl))) < 0) {
-			ERR("Unable to set socket TTL", errno);
 		}
 	}
 	DEBUG("Sockets created");
@@ -86,6 +93,9 @@ int main(int argc, char const *argv[]) {
 	return EXIT_FAILURE;
 }
 
+/**
+ Creates an ISD socket
+*/
 int create_socket() {
 	int sock;
 	if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {

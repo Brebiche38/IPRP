@@ -1,9 +1,17 @@
+/**\file list.c
+ * List functions
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #include <errno.h>
 #include <stdlib.h>
 #include <pthread.h>
 
 #include "global.h"
 
+/**
+ Initializes the list
+*/
 void list_init(list_t *list) {
 	list->head = NULL;
 	list->tail = NULL;
@@ -11,6 +19,9 @@ void list_init(list_t *list) {
 	list->mutex = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
 }
 
+/**
+ Appends the given value to the end of the list
+*/
 void list_append(list_t *list, void* value) {
 	list_elem_t *new_elem = malloc(sizeof(list_elem_t));
 	if (!new_elem) {
@@ -31,6 +42,9 @@ void list_append(list_t *list, void* value) {
 	list->size++;
 }
 
+/**
+ Removes the given element from the list
+*/
 void list_delete(list_t *list, list_elem_t *elem) {
 	if (list->head == elem) {
 		list->head = elem->next;
@@ -52,14 +66,23 @@ void list_delete(list_t *list, list_elem_t *elem) {
 	free(elem);
 }
 
+/**
+ Returns the size of the list
+*/
 size_t list_size(list_t *list) {
 	return list->size;
 }
 
+/**
+ Locks the list to prevent concurrent editing
+*/
 void list_lock(list_t *list) {
 	pthread_mutex_lock(&list->mutex);
 }
 
+/**
+ Unlocks the list to allow modification
+*/
 void list_unlock(list_t *list) {
 	pthread_mutex_unlock(&list->mutex);
 }

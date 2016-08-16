@@ -1,3 +1,8 @@
+/**\file ird/senderifaces.c
+ * Sender interfaces handler for the IRD side
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE IRD_SI
 
 #include <errno.h>
@@ -9,11 +14,11 @@
 #include "ird.h"
 #include "senderifaces.h"
 
-// Global variables
+/* Global variables */
 list_t sender_ifaces;
 int subscribe_socket; // TODO What about the connection limit
 
-// Function prototypes
+/* Function prototypes */
 iprp_sender_ifaces_t *find_si_in_array(iprp_sender_ifaces_t *si, iprp_sender_ifaces_t *array, int count);
 bool find_si_in_list(iprp_sender_ifaces_t *si);
 bool find_addr_in_sender(struct in_addr addr, iprp_sender_ifaces_t *si);
@@ -22,6 +27,13 @@ void update_memberships(iprp_sender_ifaces_t *curr, iprp_sender_ifaces_t *new);
 void drop_memberships(iprp_sender_ifaces_t *si);
 void membership(struct in_addr group_addr, struct in_addr src_addr, struct in_addr host_addr, bool add);
 
+/**
+ Updates the source memberships of the IRD according to changes pushed down by the ICD
+
+ The routine first sets up the socket it needs to subscribe to SSM groups.
+ It then periodically reads the sender interfaces file.
+ Given the new data, it updates its cache and adds or drops SSM memberships as needed.
+*/
 void* si_routine(void* arg) {
 	DEBUG("In routine");
 
@@ -89,6 +101,9 @@ void* si_routine(void* arg) {
 	}
 }
 
+/**
+ Looks for an entry in an array of sender interfaces
+*/
 iprp_sender_ifaces_t *find_si_in_array(iprp_sender_ifaces_t *si, iprp_sender_ifaces_t *array, int count) {
 	for (int i = 0; i < count; ++i) {
 		if (si->sender_addr.s_addr == array[i].sender_addr.s_addr
@@ -100,6 +115,9 @@ iprp_sender_ifaces_t *find_si_in_array(iprp_sender_ifaces_t *si, iprp_sender_ifa
 	return NULL;
 }
 
+/**
+ Looks for an entry in the list of sender interfaces
+*/
 bool find_si_in_list(iprp_sender_ifaces_t *si) {
 	list_elem_t *iterator = sender_ifaces.head;
 	while(iterator != NULL) {
@@ -116,6 +134,9 @@ bool find_si_in_list(iprp_sender_ifaces_t *si) {
 	return false;
 }
 
+/**
+ Returns whether the given entry contains the given source address
+*/
 bool find_addr_in_sender(struct in_addr addr, iprp_sender_ifaces_t *si) {
 	for (int i = 0; i < si->nb_ifaces; ++i) {
 		if (si->ifaces[i].addr.s_addr == addr.s_addr) {
@@ -125,12 +146,18 @@ bool find_addr_in_sender(struct in_addr addr, iprp_sender_ifaces_t *si) {
 	return false;
 }
 
+/**
+ Adds SSM memberships for the given entry
+*/
 void add_memberships(iprp_sender_ifaces_t *si) {
 	for (int i = 0; i < si->nb_ifaces; ++i) {
 		membership(si->group_addr, si->ifaces[i].addr, si->host_addr[i], true);
 	}
 }
 
+/**
+ Updates SSM memberships for the old entry given the updated entry
+*/
 void update_memberships(iprp_sender_ifaces_t *curr, iprp_sender_ifaces_t *new) {
 	// Drop phase
 	for (int i = 0; i < curr->nb_ifaces; ++i) {
@@ -147,12 +174,18 @@ void update_memberships(iprp_sender_ifaces_t *curr, iprp_sender_ifaces_t *new) {
 	}
 }
 
+/**
+ Drops all SSM memberships for the given entry
+*/
 void drop_memberships(iprp_sender_ifaces_t *si) {
 	for (int i = 0; i < si->nb_ifaces; ++i) {
 		membership(si->group_addr, si->ifaces[i].addr, si->host_addr[i], false);
 	}
 }
 
+/**
+ Actually adds or drops the SSM membership
+*/
 void membership(struct in_addr group_addr, struct in_addr src_addr, struct in_addr host_addr, bool add) {
 	/* No SSM
 	struct ip_mreqn ssm_request;

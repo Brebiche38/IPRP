@@ -1,10 +1,8 @@
-/**\file receiver.c
- * Receiver-side logic (monitoring and receiving daemons, active senders)
+/**\file files.c
+ * Disk management functions
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
- * \version alpha
  */
-
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +12,9 @@
 #include "peerbase.h"
 #include "senderifaces.h"
 
+/**
+ Stores the given peerbase to the given file
+*/
 int peerbase_store(const char* path, iprp_peerbase_t *base) {
 	if (path == NULL | base == NULL) return IPRP_ERR_NULLPTR;
 
@@ -32,6 +33,9 @@ int peerbase_store(const char* path, iprp_peerbase_t *base) {
 	return 0;
 }
 
+/**
+ Loads the peerbase from the given file
+*/
 int peerbase_load(const char *path, iprp_peerbase_t *base) {
 	if (path == NULL || base == NULL) return IPRP_ERR_NULLPTR;
 
@@ -48,12 +52,7 @@ int peerbase_load(const char *path, iprp_peerbase_t *base) {
 }
 
 /**
-Stores the given active senders to the given file
-
-\param path The file to which the data is stored
-\param count The amount of senders to store
-\param senders An array of senders of size count to store
-\return None
+ Stores the given active senders to the given file
 */
 void activesenders_store(const char* path, const int count, const iprp_active_sender_t* senders) {
 	// Get file descriptor
@@ -78,12 +77,7 @@ void activesenders_store(const char* path, const int count, const iprp_active_se
 }
 
 /**
-Retrieves the active senders list from the given file
-
-\param path The file in which the data is stored
-\param count A pointer to which the amount of senders will be stored
-\param senders A pointer to which the array of senders will be stored
-\return 0 on success, an error code on failure
+ Retrieves the active senders list from the given file
 */
 int activesenders_load(const char *path, int* count, iprp_active_sender_t** senders) {
 	if (!count || !senders) return IPRP_ERR_NULLPTR;
@@ -110,12 +104,7 @@ int activesenders_load(const char *path, int* count, iprp_active_sender_t** send
 }
 
 /**
-Stores the given sender interfaces to the given file
-
-\param path The file to which the data is stored
-\param count The amount of senders to store
-\param senders An array of senders of size count to store
-\return None
+ Stores the given sender interfaces to the given file
 */
 void senderifaces_store(const char* path, const int count, const iprp_sender_ifaces_t* senders) {
 	// Get file descriptor
@@ -140,12 +129,7 @@ void senderifaces_store(const char* path, const int count, const iprp_sender_ifa
 }
 
 /**
-Retrieves the sender interfaces list from the given file
-
-\param path The file in which the data is stored
-\param count A pointer to which the amount of senders will be stored
-\param senders A pointer to which the array of senders will be stored
-\return 0 on success, an error code on failure
+ Retrieves the sender interfaces list from the given file
 */
 int senderifaces_load(const char *path, int* count, iprp_sender_ifaces_t** senders) {
 	if (!count || !senders) return IPRP_ERR_NULLPTR;

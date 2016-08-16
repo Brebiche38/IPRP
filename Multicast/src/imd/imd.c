@@ -1,3 +1,8 @@
+/**\file imd.c
+ * iPRP Monitoring Daemon
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE IMD_MAIN
 
 #include <stdlib.h>
@@ -5,23 +10,19 @@
 
 #include "imd.h"
 
-// Threads
+/* Threads */
 pthread_t time_thread;
 pthread_t handle_thread;
 pthread_t ird_handle_thread;
 pthread_t as_thread;
 
-// Active senders list cache (TODO array?)
 extern list_t active_senders;
 
 /**
-Moitoring daemon entry point
+ Moitoring daemon entry point
 
-This method creates the structures for handling the monitoring NFQueue, as well as the threads of the monitoring daemon.
-The role of the monitoring daemon is to check all incoming packets on the monitored ports and to update the active senders list for the control deamon to send CAP messages.
-
-\param queue_id The identifier of the NFQueue handling the packets filtered by the monitored ports rules
-\return does not return
+ The IMD first gets the numbers of the queues it has to monitor from its arguments.
+ It then sets up and launches all the IMD routines and waits forever.
 */
 int main(int argc, char const *argv[]) {
 	int err;

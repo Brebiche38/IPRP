@@ -1,3 +1,8 @@
+/**\file isd/handle.c
+ * Packet handler for the ISD queue
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE ISD_HANDLE
 
 #include <errno.h>
@@ -13,17 +18,20 @@
 #include "peerbase.h"
 
 extern time_t curr_time;
-time_t last_allowed_thru = 0;
+time_t last_allowed_thru = 0; /* Multicast periodical keepalive timer */
 
 extern iprp_isd_peerbase_t pb;
 extern int sockets[IPRP_MAX_INDS];
 
-// Local functions
+/* Function prototypes */
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
 size_t create_iprp_packet(struct nfq_data *packet, char* *new_buf, struct nfq_q_handle *queue);
 int send_packet(iprp_iface_t *iface, char *packet, size_t packet_size, struct sockaddr_in *addr, iprp_ind_bitmap_t base_inds);
 uint32_t get_verdict();
 
+/**
+ Sets up the queue and forwards packet to the handle function
+*/
 void* handle_routine(void* arg) {
 	intptr_t queue_id = (intptr_t) arg;
 	printf("Queue ID: %d\n", queue_id);
@@ -56,6 +64,12 @@ void* handle_routine(void* arg) {
 	}
 }
 
+/**
+ Duplicates a packet and sends it through iPRP
+
+ The routine first adds the iPRP header to the packet.
+ It then sends it to all the receiver interfaces contained in the peerbase.
+*/
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
 	DEBUG("In handle");
 
@@ -89,6 +103,9 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	return 0;
 }
 
+/**
+ Creates an iPRP packet from the given NFQueue packet
+*/
 size_t create_iprp_packet(struct nfq_data *packet, char* *new_buf, struct nfq_q_handle *queue) {
 	static uint32_t seq_nb = 1;
 	int bytes;
@@ -138,6 +155,9 @@ size_t create_iprp_packet(struct nfq_data *packet, char* *new_buf, struct nfq_q_
 	return payload_size + sizeof(iprp_header_t);
 }
 
+/**
+ Sends a packet on the given interface
+*/
 int send_packet(iprp_iface_t *iface, char *packet, size_t packet_size, struct sockaddr_in *addr, iprp_ind_bitmap_t base_inds) {
 	if ((1 << iface->ind) & base_inds) {
 		if (sendto(sockets[iface->ind], packet, packet_size, 0, (struct sockaddr *) addr, sizeof(struct sockaddr)) == -1) {
@@ -147,6 +167,9 @@ int send_packet(iprp_iface_t *iface, char *packet, size_t packet_size, struct so
 	return 0;
 }
 
+/**
+ Returns whether the packet should be let through (multicast only)
+*/
 uint32_t get_verdict() {
 	if (curr_time - last_allowed_thru >= IPRP_T_ISD_ALLOW) {
 		last_allowed_thru = curr_time;

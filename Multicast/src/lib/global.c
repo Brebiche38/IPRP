@@ -2,9 +2,7 @@
  * Utility functions
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
- * \version alpha
  */
-
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,6 +11,9 @@
 
 #include "../../inc/global.h"
 
+/**
+ Fills a sockaddr_in structure with the given information
+*/
 void sockaddr_fill(struct sockaddr_in *sockaddr, struct in_addr addr, uint16_t port) {
 	sockaddr->sin_family = AF_INET;
 	sockaddr->sin_port = htons(port);
@@ -20,6 +21,9 @@ void sockaddr_fill(struct sockaddr_in *sockaddr, struct in_addr addr, uint16_t p
 	memset(sockaddr->sin_zero, 0, sizeof(sockaddr->sin_zero));
 }
 
+/**
+ Returns the matching INDs between the given host and INDs
+*/
 iprp_ind_bitmap_t ind_match(iprp_host_t *sender, iprp_ind_bitmap_t receiver_inds) {
 	iprp_ind_bitmap_t sender_inds = 0;
 
@@ -28,8 +32,11 @@ iprp_ind_bitmap_t ind_match(iprp_host_t *sender, iprp_ind_bitmap_t receiver_inds
 	}
 
 	return sender_inds & receiver_inds;
-}å
+}
 
+/**
+ Returns the current thread name (used for debugging)
+*/
 char* iprp_thr_name(iprp_thread_t thread) {
 	switch(thread) {
 		case ICD_MAIN: return "icd";

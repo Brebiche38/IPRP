@@ -1,3 +1,8 @@
+/**\file imd/activesenders.c
+ * Active sender handler for the IMD side
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE IMD_AS
 
 #include <errno.h>
@@ -9,6 +14,7 @@
 
 extern time_t curr_time;
 
+/* Active senders cache */
 list_t active_senders;
 
 // Function prototypes
@@ -16,9 +22,10 @@ int count_and_cleanup();
 iprp_active_sender_t *get_entries(int count);
 
 /**
-Deletes aged entries from the active senders list and pushes the changes down to the file.
+ Pushes the changes to the active senders down to the ICD
 
-\return does not return
+ The active senders routine first deletes aged entries from its cache (filled by the handle routine).
+ It then writes the active senders to disk, where the ICD can retrieve them.
 */
 void* as_routine(void* arg) {
 	DEBUG("In routine");
@@ -40,6 +47,9 @@ void* as_routine(void* arg) {
 	}
 }
 
+/**
+ Deletes the no longer active senders from the list and returns the number of remaining entries
+*/
 int count_and_cleanup() {
 	int count = 0;
 	list_elem_t *iterator = active_senders.head;
@@ -65,6 +75,9 @@ int count_and_cleanup() {
 	return count;
 }
 
+/**
+ Returns the content to be pushed to the disk
+*/
 iprp_active_sender_t *get_entries(int count) {
 	iprp_active_sender_t *entries = calloc(count, sizeof(iprp_active_sender_t));
 	if (!entries) {

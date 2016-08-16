@@ -1,3 +1,8 @@
+/**\file isd/peerbase.c
+ * Peerbase handler on the ISD side
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE ISD_PB
 
 #include <errno.h>
@@ -11,6 +16,12 @@
 extern iprp_isd_peerbase_t pb;
 extern int sockets[];
 
+/**
+ Caches the peerbase
+
+ The routine periodically loads the peerbase from file and updates its cache.
+ The first time it does so, it signals the handling thread that it can begin to send packets.
+*/
 void* pb_routine(void *arg) {
 	// Get argument
 	char* base_path = arg;

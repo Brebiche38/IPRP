@@ -1,3 +1,8 @@
+/**\file ird/handle.c
+ * Packet handler for the IRD queues
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE IRD_HANDLE
 
 #include <errno.h>
@@ -16,12 +21,12 @@
 extern time_t curr_time;
 extern int imd_queue_id;
 
+/* State information about peers */
 list_t receiver_links;
-
 pthread_t cleanup_thread;
 void* cleanup_routine(void* arg);
 
-// Function prototypes
+/* Function prototypes */
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
 uint16_t ip_checksum(struct iphdr *header, size_t len);
 uint16_t udp_checksum(uint16_t *packet, size_t len, uint32_t src_addr, uint32_t dest_addr);
@@ -30,6 +35,9 @@ iprp_receiver_link_t *receiver_link_get(iprp_header_t *header);
 iprp_receiver_link_t *receiver_link_create(iprp_header_t *header);
 bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link);
 
+/**
+ Initializes the queue and dispatches the packets to the handle function
+*/
 void* handle_routine(void* arg) {
 	intptr_t queue_id = (intptr_t) arg;
 	DEBUG("In routine");
@@ -64,6 +72,14 @@ void* handle_routine(void* arg) {
 	}
 }
 
+/**
+ Handles a packet received on the IRD queue
+
+ The handler first creates or updates the receiver link structure for the sender of the packet.
+ It then applies the duplicate-discard algorithm to decide whether to keep the packet.
+ If the packet is fresh, the handler modifies it as needed and forwards it to the application.
+ Otherwise it drops it.
+*/
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
 	DEBUG("Handling packet");
 
@@ -163,6 +179,9 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	return 0;
 }
 
+/**
+ Creates the packet to be forwarded to the application
+*/
 char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size) {
 	// Modify IP header
 	ip_header->tot_len = htons(payload_size + sizeof(struct iphdr) + sizeof(struct udphdr));
@@ -182,10 +201,7 @@ char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp
 }
 
 /**
-Look for the SNSID of the given IPRP header in the list of links
-
-\param header The IPRP header we're looking for
-\return The corresponding receiver link, or NULL if none found
+ Look for the SNSID of the given IPRP header in the list of links
 */
 iprp_receiver_link_t *receiver_link_get(iprp_header_t *header) {
 	iprp_receiver_link_t *packet_link = NULL;
@@ -216,10 +232,7 @@ iprp_receiver_link_t *receiver_link_get(iprp_header_t *header) {
 }
 
 /**
-Create a receiver link structure with the given IPRP header.
-
-\param header The header containing information to create the link
-\return On success, the link is returned. On failure, NULL is returned and errno is set accordingly.
+ Create a receiver link structure with the given IPRP header.
 */
 iprp_receiver_link_t *receiver_link_create(iprp_header_t *header) {
 	iprp_receiver_link_t *packet_link = malloc(sizeof(iprp_receiver_link_t));
@@ -242,13 +255,7 @@ iprp_receiver_link_t *receiver_link_create(iprp_header_t *header) {
 }
 
 /**
-Duplicate discard algorithm
-
-The algorithm determines if the given packet should be forwarded to the application or dropped
-
-\param packet The IPRP header of the packet to check
-\param link The receiver link structure containing the state information about the connection
-\return Whether the packet has to be forwarded or not
+ Duplicate-discard algorithm
 */
 bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link) {
 	// TODO resetCtr doesn't make sense...
@@ -295,11 +302,7 @@ bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link) {
 }
 
 /**
-Computes the IP checksum from an IP header
-
-\param header The IP header, with its checksum field set to 0
-\param len The length of the IP header in bytes
-\return The IP checksum
+ Computes the IP checksum from an IP header
 */
 uint16_t ip_checksum(struct iphdr *header, size_t len) {
 	uint32_t checksum = 0;
@@ -320,13 +323,7 @@ uint16_t ip_checksum(struct iphdr *header, size_t len) {
 }
 
 /**
-Computes the UDP checksum from a UDP header and the given IP pseudo-header
-
-\param packet The entire UDP payload, with UDP ckhecksum field set to 0
-\param len The length of the payload in bytes
-\param src_addr The source IP address for the pseudo-header
-\param dest_addr The destination IP address for the pseudo-header
-\return The IP checksum
+ Computes the UDP checksum from a UDP header and the given IP pseudo-header
 */
 uint16_t udp_checksum(uint16_t *packet, size_t len, uint32_t src_addr, uint32_t dest_addr) {
 	uint32_t checksum = 0;
@@ -363,6 +360,9 @@ uint16_t udp_checksum(uint16_t *packet, size_t len, uint32_t src_addr, uint32_t 
 	return (uint16_t) ~checksum;
 }
 
+/**
+ Deletes expired entries from the receiver link structure
+*/
 void* cleanup_routine(void* arg) {
 	DEBUG("In routine");
 

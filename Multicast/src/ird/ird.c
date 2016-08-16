@@ -1,3 +1,8 @@
+/**\file ird.c
+ * iPRP Receiving Daemon
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE IRD_MAIN
 
 #include <stdlib.h>
@@ -5,12 +10,20 @@
 
 #include "ird.h"
 
+/* Forwarding queue number */
 int imd_queue_id;
 
+/* Threads */
 pthread_t time_thread;
 pthread_t handle_thread;
 pthread_t si_thread;
 
+/**
+ Receiver daemon entry point
+
+ The IRD first parses its arguments (incoming and outgoing packet queues).
+ It then launches the IRD routines and waits forever.
+*/
 int main(int argc, char const *argv[]) {
 	int err;
 	

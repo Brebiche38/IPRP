@@ -1,5 +1,5 @@
 /**\file icd/senderifaces.c
- * Active sender handler for the ICD side
+ * Sender interfaces handler for the ICD side
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
  */

@@ -1,3 +1,8 @@
+/**\file imd/handle.c
+ * Packet handler for the IMD queues
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #define IPRP_FILE IMD_HANDLE
 
 #include <errno.h>
@@ -7,14 +12,13 @@
 #include <time.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
-// #include nfqueue
 
 #include "imd.h"
 
 extern time_t curr_time;
 extern list_t active_senders;
 
-// Function prototypes
+/* Function prototypes */
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
 int ird_handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
 int global_handle(struct nfq_q_handle *queue, struct nfq_data *packet, bool iprp_message);
@@ -22,9 +26,11 @@ iprp_active_sender_t *activesenders_find_entry(const struct in_addr src_addr, co
 iprp_active_sender_t *activesenders_create_entry(const struct in_addr src_addr, const struct in_addr group_addr, const uint16_t src_port, const uint16_t dest_port, const bool iprp_enabled);
 
 /**
-Receives packets from the queue and transfers them to the handle_packet routine.
+ Sets up and launches the wrapper for the IMD queue
 
-\return does not return
+ The IMD queue gets all packets sent to any monitored port from non-iPRP sources.
+ Those packets can come either from an host to which no iPRP session has been established,
+ or a periodical packet to allow newly joining host to the multicast group to extablish their session.
 */
 void* handle_routine(void* arg) {
 	uint16_t queue_id = (uint16_t) arg;
@@ -48,7 +54,17 @@ void* handle_routine(void* arg) {
 		DEBUG("Packet handled");
 	}
 }
+int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
+	DEBUG("Handling packet");
 
+	return global_handle(queue, packet, false);
+}
+
+/**
+ Sets up and launches the wrapper for the IRD-IMD queue
+
+ The IRD-IMD queue transfers packets received by the IRD to update the IMD structures needed.
+*/
 void* ird_handle_routine(void* arg) {
 	uint16_t queue_id = (uint16_t) arg;
 	DEBUG("IRD In routine");
@@ -71,28 +87,19 @@ void* ird_handle_routine(void* arg) {
 		DEBUG("Packet handled");
 	}
 }
-
-
-/**
-Updates the active senders list with the received packet.
-
-The function creates an active sender entry if it is the first packet it sees from this sender.
-
-\return 0 on success, -1 to end treatment of packets
-*/
-int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
-	DEBUG("Handling packet");
-
-	return global_handle(queue, packet, false);
-}
-
-// Handle packet coming from the IRD
 int ird_handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data) {
 	DEBUG("Handling packet");
 
 	return global_handle(queue, packet, true);
 }
 
+/**
+ Handle the message coming from one of the two queues monitored by the IMD
+
+ The handler first creates or updates the active senders entry for the incoming packet.
+ It then accepts the packet if it is an iPRP packet, or if no session is established yet.
+ Otherwise it rejects the packet (if the packet is a non-iPRP packet sent from an iPRP host).
+*/
 int global_handle(struct nfq_q_handle *queue, struct nfq_data *packet, bool iprp_message) {
 	// Get packet payload
 	int bytes;
@@ -165,12 +172,7 @@ int global_handle(struct nfq_q_handle *queue, struct nfq_data *packet, bool iprp
 }
 
 /**
-Find an entry in the active senders cache corresponding to the given parameters
-
-\param src_addr Source IP of the triggering message
-\param src_port Source port of the triggering message
-\param dest_port Destination port of the triggering message
-\return The active sender entry if it exists, NULL otherwise
+ Find an entry in the active senders cache corresponding to the given parameters
 */
 iprp_active_sender_t *activesenders_find_entry(const struct in_addr src_addr, const struct in_addr group_addr, const uint16_t src_port, const uint16_t dest_port) {
 	// Find the entry
@@ -190,12 +192,7 @@ iprp_active_sender_t *activesenders_find_entry(const struct in_addr src_addr, co
 }
 
 /**
-Creates an active sender entry with the corresponding parameters
-
-\param src_addr Source IP of the triggering message
-\param src_port Source port of the triggering message
-\param dest_port Destination port of the triggering message
-\return On success, the active sender entry is returned, on failure, NULL is returned and errno is set accordingly
+ Creates an active sender entry with the corresponding parameters
 */
 iprp_active_sender_t *activesenders_create_entry(const struct in_addr src_addr, const struct in_addr group_addr, const uint16_t src_port, const uint16_t dest_port, const bool iprp_enabled) {
 	iprp_active_sender_t *entry = malloc(sizeof(iprp_active_sender_t));

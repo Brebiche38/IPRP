@@ -1,11 +1,18 @@
+/**\file nfqueue.c
+ * NFQueue functions
+ * 
+ * \author Loic Ottet (loic.ottet@epfl.ch)
+ */
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/socket.h>
-// TODO include NFQueue
 
 #include "global.h"
 
 // TODO decide error handling
+/**
+ Sets up the given queue to handle its packet from the given callback
+*/
 int queue_setup(iprp_queue_t *nfq, int queue_id, nfq_callback *callback) {
 	// Setup nfqueue
 	nfq->handle = nfq_open();
@@ -33,6 +40,9 @@ int queue_setup(iprp_queue_t *nfq, int queue_id, nfq_callback *callback) {
 	return 0;
 }
 
+/**
+ Handles the next packet from the queue
+*/
 int get_and_handle(struct nfq_handle *handle, int queue_fd) {
 	int bytes;
 	char buf[IPRP_PKTBUF_SIZE];
