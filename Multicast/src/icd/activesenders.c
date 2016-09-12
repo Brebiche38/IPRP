@@ -17,6 +17,7 @@ extern time_t curr_time;
 
 /* Function prototypes */
 int get_active_senders(iprp_active_sender_t **senders);
+bool in_sender_ifaces(struct in_addr group_addr, struct in_addr src_addr);
 void send_cap(iprp_active_sender_t *sender, int socket);
 int backoff();
 
@@ -50,7 +51,9 @@ void* as_routine(void* arg) {
 
 		// Send CAP messages
 		for (int i = 0; i < count; ++i) {
-			send_cap(&senders[i], sendcap_socket);
+			if (!in_sender_ifaces(senders[i].group_addr, senders[i].src_addr)) {
+				send_cap(&senders[i], sendcap_socket);
+			}
 			DEBUG("CAP sent");
 		}
 		LOG("All CAPs sent");

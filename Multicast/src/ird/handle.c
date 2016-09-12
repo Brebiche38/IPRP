@@ -30,7 +30,7 @@ void* cleanup_routine(void* arg);
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
 uint16_t ip_checksum(struct iphdr *header, size_t len);
 uint16_t udp_checksum(uint16_t *packet, size_t len, uint32_t src_addr, uint32_t dest_addr);
-char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size);
+char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size, struct in_addr src_addr);
 iprp_receiver_link_t *receiver_link_get(iprp_header_t *header);
 iprp_receiver_link_t *receiver_link_create(iprp_header_t *header);
 bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link);
@@ -151,7 +151,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		// Fresh packet, tranfer to application
 		DEBUG("Fresh packet received");
 
-		char *new_packet = create_new_packet(ip_header, udp_header, iprp_header, payload, payload_size);
+		char *new_packet = create_new_packet(ip_header, udp_header, iprp_header, payload, payload_size, packet_link->src_addr);
 		size_t new_packet_size = payload_size + sizeof(struct iphdr) + sizeof(struct udphdr);
 		DEBUG("Packet ready to forward");
 
@@ -182,8 +182,9 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 /**
  Creates the packet to be forwarded to the application
 */
-char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size) {
+char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size, struct in_addr src_addr) {
 	// Modify IP header
+	ip_header->saddr = htonl(src_addr); // No need to change destination address in multicast
 	ip_header->tot_len = htons(payload_size + sizeof(struct iphdr) + sizeof(struct udphdr));
 	ip_header->check = 0;
 	ip_header->check = ip_checksum(ip_header, sizeof(struct iphdr));
