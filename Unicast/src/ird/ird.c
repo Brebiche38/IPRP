@@ -233,18 +233,37 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 		// Get destination port from IPRP header
 		uint16_t dest_port = ntohs(iprp_header->dest_port);
+		uint16_t src_port = ntohs(*((uint16_t*) &iprp_header->snsid[16]));
+		struct in_addr src_addr;
+		src_addr.s_addr = ntohl(*((unsigned long*) &iprp_header->snsid[0]));
+		struct in_addr dest_addr;
+		dest_addr.s_addr = ntohl(iprp_header->dest_addr.s_addr);
+		printf("source port %d\n", src_port);
+		printf("dest port %d\n", dest_port);
+		printf("src addr %x\n", src_addr.s_addr);
+		printf("dest addr %x\n", dest_addr.s_addr);
 
 		// Move payload over IPRP header
 		memmove(iprp_header,
 			((char*) iprp_header) + sizeof(iprp_header_t),
 			bytes - sizeof(struct iphdr) - sizeof(struct udphdr) - sizeof(iprp_header_t));
+
+		printf("source port %d\n", src_port);
+		printf("dest port %d\n", dest_port);
+		printf("src addr %x\n", src_addr.s_addr);
+		printf("dest addr %x\n", dest_addr.s_addr);
 		
 		// Compute ckecksums
+		ip_header->saddr = htonl(src_addr.s_addr);
+		ip_header->daddr = htonl(dest_addr.s_addr);
 		ip_header->tot_len = htons(bytes - sizeof(iprp_header_t));
+		printf("IP checksum before: %d", ip_header->check);
 		ip_header->check = 0;
 		ip_header->check = ip_checksum(ip_header, sizeof(struct iphdr));
+		printf("IP checksum after: %d", ip_header->check);
 
-		udp_header->dest = htons(dest_port); // TODO source port as well ?
+		udp_header->dest = htons(dest_port);
+		udp_header->source = htons(src_port);
 		udp_header->len = htons(bytes - sizeof(struct iphdr) - sizeof(iprp_header_t));
 		udp_header->check = 0;
 		//udp_header->check = udp_checksum((uint16_t *) udp_header, bytes - sizeof(struct iphdr), ip_header->saddr, ip_header->daddr);

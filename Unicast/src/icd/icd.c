@@ -322,6 +322,7 @@ void* receiver_ports_routine(void* arg) {
 					found = true;
 					break;
 				}
+				iterator = iterator->next;
 			}
 			if (!found) {
 				// Create list item

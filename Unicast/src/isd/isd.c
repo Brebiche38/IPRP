@@ -76,7 +76,7 @@ int main(int argc, char const *argv[]) {
 	// TODO isn't it overkill if most are not used?
 	// TODO do we really need multiple sockets ? Probably yes
 	for (int i = 0; i < IPRP_MAX_IFACE; ++i) {
-		if ((sockets[i] = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+		if ((sockets[i] = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
 			ERR("Unable to create socket", errno);
 		}
 	}
@@ -202,6 +202,15 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr)); // TODO sizeof(uint32_t) * ip_header->ip_hdr_len
 	DEBUG(IPRP_ISD_HANDLE, "Got payload headers");
 
+	// Dump packet
+	printf("ISD *******\n%d\n", bytes);
+	for (int i = 0; i < bytes; ++i) {
+		printf("%x ", buf[i]);
+		if (i%8 == 7) {
+			printf("\n");
+		}
+	}
+
 	// Create new packet
 	char *new_packet = malloc(bytes - sizeof(struct iphdr) - sizeof(struct udphdr) + sizeof(iprp_header_t));
 	if (new_packet == NULL) {
@@ -216,6 +225,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	header->version = IPRP_VERSION;
 	header->seq_nb = seq_nb;
 	header->dest_port = udp_header->dest;
+	header->dest_addr.s_addr = ip_header->daddr;
 
 	// Create SNSID
 	// TODO compute snsid from peer base?

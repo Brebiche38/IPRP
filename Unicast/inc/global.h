@@ -30,9 +30,9 @@
 #define IPRP_MAX_INDS 16
 #define IPRP_PATH_LENGTH 50
 
-#define IPRP_ISD_BINARY_LOC "bin/isd"
-#define IPRP_IRD_BINARY_LOC "bin/ird"
-#define IPRP_IMD_BINARY_LOC "bin/imd"
+#define IPRP_ISD_BINARY_LOC "../bin/isd"
+#define IPRP_IRD_BINARY_LOC "../bin/ird"
+#define IPRP_IMD_BINARY_LOC "../bin/imd"
 
 #define IPRP_CTLMSG_SECRET 0x3dbf391e
 #define IPRP_IFACE_NAME_LENGTH 10
@@ -96,9 +96,10 @@ struct iprp_header {
 	unsigned char snsid[20]; // TODO check if size possible
 	uint32_t seq_nb;
 	uint16_t dest_port;
+	struct in_addr dest_addr;
 	iprp_ind_t ind;
 	char hmac[160];
-};
+}__attribute__((packed));
 
 int compare_hosts(iprp_host_t *h1, iprp_host_t *h2);
 iprp_iface_t *get_iface_from_ind(iprp_host_t *host, iprp_ind_t ind);

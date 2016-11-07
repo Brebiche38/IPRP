@@ -222,6 +222,15 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	}
 	DEBUG(IPRP_IMD_HANDLE, "Got payload");
 
+	// Dump packet
+	printf("IMD *******\n%d\n", bytes);
+	for (int i = 0; i < bytes; ++i) {
+		printf("%x ", buf[i]);
+		if (i%8 == 7) {
+			printf("\n");
+		}
+	}
+
 	// Get payload headers and source address
 	struct iphdr *ip_header = (struct iphdr *) buf; // TODO assert IP header length = 20 bytes
 	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr)); // TODO sizeof(uint32_t) * ip_header->ip_hdr_len

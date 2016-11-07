@@ -51,7 +51,7 @@ typedef enum {
 char* iprp_thr_name(iprp_thread_t thread);
 
 // Debugging
-#define DEBUG_INFO
+#define DEBUG_FULL
 
 #define MSG(thread, msg) \
 	printf("[%s] ", iprp_thr_name(thread)); \
@@ -69,7 +69,7 @@ char* iprp_thr_name(iprp_thread_t thread);
 
 #ifdef DEBUG_FULL
 	// Threads needing debugging (flags)
-	#define DEBUG_THREADS (IPRP_IRD_HANDLE | IPRP_IRD_CLEANUP)
+	#define DEBUG_THREADS (-1)
 
 	#define LOG(thread, msg) MSG(thread, msg)
 
