@@ -3,8 +3,9 @@ Implementation of the iPRP protocol for IPv4 hosts
 
 Two versions, one for Unicast packets and one for Multicast packets, are available in their corresponding directories.
 
-Compilation: sh compile.sh
-Usage: bin/icd n a1 [a2 ...]
+Compilation: compile.sh
+
+Usage: run.sh n a1 [a2 ...]
 - n: number of interfaces for the host
 - a1, a2, ...: IP address of each interface in order
 
