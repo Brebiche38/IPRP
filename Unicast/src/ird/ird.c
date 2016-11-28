@@ -245,8 +245,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 			((char*) iprp_header) + sizeof(iprp_header_t),
 			bytes - sizeof(struct iphdr) - sizeof(struct udphdr) - sizeof(iprp_header_t));
 
-		printf("source port %d\n", src_port);
-		printf("dest port %d\n", dest_port);
+		//printf("source port %d\n", src_port);
+		//printf("dest port %d\n", dest_port);
 		// printf("src addr %x\n", ntohl(src_addr.s_addr));
 		// printf("src addr %s\n", inet_ntoa(*((struct in_addr *)(&src_addr))));
 		// printf("dest addr %s\n", inet_ntoa(dest_addr));
@@ -255,15 +255,15 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		ip_header->saddr = src_addr.s_addr;
 		ip_header->daddr = dest_addr.s_addr;
 		ip_header->tot_len = htons(bytes - sizeof(iprp_header_t));
-		printf("IP checksum before: %d", ip_header->check);
+		//printf("IP checksum before: %d", ip_header->check);
 		ip_header->check = 0;
 		ip_header->check = ip_checksum(ip_header, sizeof(struct iphdr));
-		printf("IP checksum after: %d", ip_header->check);
+		//printf("IP checksum after: %d", ip_header->check);
 
 		udp_header->dest = htons(dest_port);
 		udp_header->source = htons(src_port);
 		udp_header->len = htons(bytes - sizeof(struct iphdr) - sizeof(iprp_header_t));
-		printf("len %d %d %d %d\n", bytes, sizeof(struct iphdr), sizeof(iprp_header_t), ntohs(udp_header->len));
+		//printf("len %d %d %d %d\n", bytes, sizeof(struct iphdr), sizeof(iprp_header_t), ntohs(udp_header->len));
 		udp_header->check = 0;
 		//udp_header->check = udp_checksum((uint16_t *) udp_header, ntohs(udp_header->len), ip_header->saddr, ip_header->daddr);
 		DEBUG(IPRP_IRD_HANDLE, "Packet ready to forward");

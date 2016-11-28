@@ -203,6 +203,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	DEBUG(IPRP_ISD_HANDLE, "Got payload headers");
 
 	// Dump packet
+	/*
 	printf("ISD *******\n%d\n", bytes);
 	for (int i = 0; i < bytes; ++i) {
 		printf("%x ", buf[i]);
@@ -210,6 +211,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 			printf("\n");
 		}
 	}
+	*/
 
 	// Create new packet
 	char *new_packet = malloc(bytes - sizeof(struct iphdr) - sizeof(struct udphdr) + sizeof(iprp_header_t));

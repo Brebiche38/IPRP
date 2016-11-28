@@ -223,6 +223,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	DEBUG(IPRP_IMD_HANDLE, "Got payload");
 
 	// Dump packet
+	/*
 	printf("IMD *******\n%d\n", bytes);
 	for (int i = 0; i < bytes; ++i) {
 		printf("%x ", buf[i]);
@@ -230,6 +231,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 			printf("\n");
 		}
 	}
+	*/
 
 	// Get payload headers and source address
 	struct iphdr *ip_header = (struct iphdr *) buf; // TODO assert IP header length = 20 bytes
