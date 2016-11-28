@@ -258,7 +258,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 					0,
 					(struct sockaddr *) &recv_addr,
 					sizeof(recv_addr)) == -1) {
-				ERR("Unable to send packet", errno);
+				LOG(IPRP_ISD_HANDLE, "Unable to send packet");
 			}
 			DEBUG(IPRP_ISD_HANDLE, "Packet sent");
 

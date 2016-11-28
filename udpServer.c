@@ -55,6 +55,7 @@ int main(int argc, char** argv)
 
     while(1)
     {
+        printf("Here\n");
         bzero(buffer,256);
         size = recv(sockfd, buffer, 255, 0);
         if (size ==-1)

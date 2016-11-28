@@ -30,9 +30,9 @@
 #define IPRP_MAX_INDS 16
 #define IPRP_PATH_LENGTH 50
 
-#define IPRP_ISD_BINARY_LOC "../bin/isd"
-#define IPRP_IRD_BINARY_LOC "../bin/ird"
-#define IPRP_IMD_BINARY_LOC "../bin/imd"
+#define IPRP_ISD_BINARY_LOC "bin/isd"
+#define IPRP_IRD_BINARY_LOC "bin/ird"
+#define IPRP_IMD_BINARY_LOC "bin/imd"
 
 #define IPRP_CTLMSG_SECRET 0x3dbf391e
 #define IPRP_IFACE_NAME_LENGTH 10

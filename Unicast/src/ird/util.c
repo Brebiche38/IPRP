@@ -163,11 +163,11 @@ uint16_t udp_checksum(uint16_t *packet, size_t len, uint32_t src_addr, uint32_t 
 	uint32_t checksum = 0;
 
 	// Pseudo-header
-	checksum += (((uint16_t *) src_addr)[0]);
-	checksum += (((uint16_t *) src_addr)[1]);
+	checksum += (((uint16_t *) &src_addr)[0]);
+	checksum += (((uint16_t *) &src_addr)[1]);
 
-	checksum += (((uint16_t *) dest_addr)[0]);
-	checksum += (((uint16_t *) dest_addr)[1]);
+	checksum += (((uint16_t *) &dest_addr)[0]);
+	checksum += (((uint16_t *) &dest_addr)[1]);
 
 	checksum += htons(IPPROTO_UDP);
 	checksum += htons(len);
@@ -185,7 +185,7 @@ uint16_t udp_checksum(uint16_t *packet, size_t len, uint32_t src_addr, uint32_t 
 	}
 
 	if (len % 2 == 1) {
-		checksum += *((uint8_t *) packet[len/2]);
+		checksum += ((uint8_t *) packet)[len] << 8;
 		while (checksum >> 16) {
 			checksum = (checksum & 0xFFFF) + (checksum >> 16);
 		}

@@ -73,7 +73,8 @@ int main(int argc, char** argv)
         gettimeofday(&tv, NULL);
         t1  = tv.tv_sec;
         ut1  = tv.tv_usec;
-        
+
+        getchar();
         scanf("%d",&x);
         sprintf(buf,"%d %d %d\0",jj,t1,ut1);
         printf("buf: %s\n",buf);

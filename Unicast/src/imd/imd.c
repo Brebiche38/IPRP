@@ -271,7 +271,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 	// Accept packet
 	if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), NF_ACCEPT, bytes, buf) == -1) {
-		ERR("Unable to set verdict to NF_DROP", IPRP_ERR_NFQUEUE);
+		ERR("Unable to set verdict to NF_ACCEPT", IPRP_ERR_NFQUEUE);
 	}
 	DEBUG(IPRP_IMD_HANDLE, "Packet accepted");
 

@@ -235,13 +235,10 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		uint16_t dest_port = ntohs(iprp_header->dest_port);
 		uint16_t src_port = ntohs(*((uint16_t*) &iprp_header->snsid[16]));
 		struct in_addr src_addr;
-		src_addr.s_addr = ntohl(*((unsigned long*) &iprp_header->snsid[0]));
+		src_addr.s_addr = *((unsigned long*) &iprp_header->snsid[0]);
 		struct in_addr dest_addr;
-		dest_addr.s_addr = ntohl(iprp_header->dest_addr.s_addr);
-		printf("source port %d\n", src_port);
-		printf("dest port %d\n", dest_port);
-		printf("src addr %x\n", src_addr.s_addr);
-		printf("dest addr %x\n", dest_addr.s_addr);
+		dest_addr.s_addr = iprp_header->dest_addr.s_addr;
+		//inet_aton("10.1.0.3", &dest_addr);
 
 		// Move payload over IPRP header
 		memmove(iprp_header,
@@ -250,12 +247,13 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 
 		printf("source port %d\n", src_port);
 		printf("dest port %d\n", dest_port);
-		printf("src addr %x\n", src_addr.s_addr);
-		printf("dest addr %x\n", dest_addr.s_addr);
+		// printf("src addr %x\n", ntohl(src_addr.s_addr));
+		// printf("src addr %s\n", inet_ntoa(*((struct in_addr *)(&src_addr))));
+		// printf("dest addr %s\n", inet_ntoa(dest_addr));
 		
 		// Compute ckecksums
-		ip_header->saddr = htonl(src_addr.s_addr);
-		ip_header->daddr = htonl(dest_addr.s_addr);
+		ip_header->saddr = src_addr.s_addr;
+		ip_header->daddr = dest_addr.s_addr;
 		ip_header->tot_len = htons(bytes - sizeof(iprp_header_t));
 		printf("IP checksum before: %d", ip_header->check);
 		ip_header->check = 0;
@@ -265,12 +263,14 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		udp_header->dest = htons(dest_port);
 		udp_header->source = htons(src_port);
 		udp_header->len = htons(bytes - sizeof(struct iphdr) - sizeof(iprp_header_t));
+		printf("len %d %d %d %d\n", bytes, sizeof(struct iphdr), sizeof(iprp_header_t), ntohs(udp_header->len));
 		udp_header->check = 0;
-		//udp_header->check = udp_checksum((uint16_t *) udp_header, bytes - sizeof(struct iphdr), ip_header->saddr, ip_header->daddr);
+		//udp_header->check = udp_checksum((uint16_t *) udp_header, ntohs(udp_header->len), ip_header->saddr, ip_header->daddr);
 		DEBUG(IPRP_IRD_HANDLE, "Packet ready to forward");
 
 		// Forward packet to IMD
 		int verdict = NF_QUEUE | (imd_queue_id << 16);
+		//int verdict = NF_ACCEPT;
 		if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), verdict, bytes - sizeof(iprp_header_t), buf) == -1) {
 			ERR("Unable to set verdict to NF_QUEUE", IPRP_ERR_NFQUEUE);
 		}
