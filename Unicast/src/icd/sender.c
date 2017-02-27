@@ -60,12 +60,12 @@ int peerbase_insert(iprp_sender_link_t *link, iprp_host_t *receiver, int inds) {
 
 	peerbase.link.last_cap = time(NULL);
 
-	// TODO 1. Create file for sender deamon
+	// 1. Create file for sender deamon
 	char path[IPRP_PATH_LENGTH];
 	snprintf(path, IPRP_PATH_LENGTH, "files/base_%x.iprp", link->receiver_id);
 	peerbase_store(path, &peerbase);
 
-	// TODO 2. Insert in current links list
+	// 2. Insert in current links list
 	list_append(&current_links, link);
 
 	return 0;

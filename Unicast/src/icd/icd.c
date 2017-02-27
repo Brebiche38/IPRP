@@ -241,23 +241,7 @@ void* receiver_routine(void *arg) {
 	}
 	DEBUG(IPRP_ICD_RECV, "Sendcap thread created");
 
-	while(true) {
-//		iprp_ackmsg_t msg;
-//		int bytes;
-//		if ((bytes = read(recv_pipe_read, &msg, sizeof(iprp_ackmsg_t))) != sizeof(iprp_ackmsg_t)) {
-//			ERR("Error while reading from receiver pipe", bytes);
-//		}
-//		printf("%d\n", bytes);
-//		LOG("[recv] Received message from pipe");
-
-		// Act on received ack (multicast only)
-		// 1. Query for active sender, if not in active senders, establish connection and add to active senders.
-		// 2. Mark sender with ACK timestamp
-		// TODO What does receiving an ACK when the sender is not active means?
-		// Need way to get active sender
-
-		//if (is_active_sender(sender)) ...
-	}
+	while(true);
 }
 
 void* receiver_ports_routine(void* arg) {

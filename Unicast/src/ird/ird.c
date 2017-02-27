@@ -162,7 +162,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	DEBUG(IPRP_IRD_HANDLE, "Handling packet");
 
 	// Get header
-	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr (packet); // TODO no error check in IPv6 version
+	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr (packet);
 	if (!nfq_header) {
 		// TODO just let it go?
 		ERR("Unable to retrieve header from received packet", IPRP_ERR_NFQUEUE);

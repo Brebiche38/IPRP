@@ -22,7 +22,6 @@
 pthread_t monitor_thread;
 pthread_t cleanup_thread;
 
-// Active senders list cache (TODO array?)
 list_t active_senders;
 
 // NFQueue structures
@@ -206,7 +205,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	DEBUG(IPRP_IMD_HANDLE, "Handling packet");
 
 	// Get packet NFQueue header
-	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr(packet); // TODO no error check in IPv6 version
+	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr(packet);
 	if (!nfq_header) {
 		// TODO just let it go?
 		ERR("Unable to retrieve header from received packet", IPRP_ERR_NFQUEUE);
@@ -245,7 +244,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	// Protect the whole process from concurrent cleanup (=> better performance)
 	list_lock(&active_senders);
 
-	// Find corresponding entry in active senders (TODO too slow if too much senders, maybe limit sender count => array)
+	// Find corresponding entry in active senders
 	iprp_active_sender_t *entry = activesenders_find_entry(src_addr, src_port, dest_port);
 	DEBUG(IPRP_IMD_HANDLE, "Finished searching for senders");
 

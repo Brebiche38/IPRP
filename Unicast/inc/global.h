@@ -77,11 +77,6 @@ struct iprp_capmsg {
 	uint16_t dest_port; // Dest port of the UDP packet that triggered the CAP message
 };
 
-// Not unicast
-struct iprp_ackmsg {
-	/* TODO */
-};
-
 struct iprp_ctlmsg {
 	uint32_t secret;
 	iprp_msgtype_t msg_type;
@@ -93,7 +88,7 @@ struct iprp_ctlmsg {
 
 struct iprp_header {
 	uint8_t version;
-	unsigned char snsid[20]; // TODO check if size possible
+	unsigned char snsid[20];
 	uint32_t seq_nb;
 	uint16_t dest_port;
 	struct in_addr dest_addr;
