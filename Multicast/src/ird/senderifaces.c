@@ -3,6 +3,8 @@
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
  */
+#ifdef IPRP_MULTICAST
+
 #define IPRP_FILE IRD_SI
 
 #include <errno.h>
@@ -16,7 +18,7 @@
 
 /* Global variables */
 list_t sender_ifaces;
-int subscribe_socket; // TODO What about the connection limit
+int subscribe_socket;
 
 /* Function prototypes */
 iprp_sender_ifaces_t *find_si_in_array(iprp_sender_ifaces_t *si, iprp_sender_ifaces_t *array, int count);
@@ -211,7 +213,6 @@ void membership(struct in_addr group_addr, struct in_addr src_addr, struct in_ad
 
 	int opt = add ? IP_ADD_SOURCE_MEMBERSHIP : IP_DROP_SOURCE_MEMBERSHIP;
 	if (setsockopt(subscribe_socket, IPPROTO_IP, opt, &ssm_request, sizeof(ssm_request)) == -1) {
-		warn("");
 		ERR("Unable to subscribe to SSM group", errno);
 	}
 	if (add) {
@@ -220,3 +221,5 @@ void membership(struct in_addr group_addr, struct in_addr src_addr, struct in_ad
 		printf("Dropped membership to %x from %x\n", group_addr.s_addr, src_addr.s_addr);		
 	}
 }
+
+#endif /* IPRP_MULTICAST */

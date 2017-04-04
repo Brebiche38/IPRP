@@ -9,7 +9,6 @@
 
 #include "global.h"
 
-// TODO decide error handling
 /**
  Sets up the given queue to handle its packet from the given callback
 */
@@ -32,7 +31,7 @@ int queue_setup(iprp_queue_t *nfq, int queue_id, nfq_callback *callback) {
 	if (nfq_set_queue_maxlen(nfq->queue, IPRP_NFQUEUE_MAX_LENGTH) == -1) {
 		ERR("Unable to set queue max length", IPRP_ERR_NFQUEUE);
 	}
-	if (nfq_set_mode(nfq->queue, NFQNL_COPY_PACKET, 0xffff) == -1) { // TODO why 0xffff and not UINT32_MAX
+	if (nfq_set_mode(nfq->queue, NFQNL_COPY_PACKET, 0xffff) == -1) {
 		ERR("Unable to set queue mode", IPRP_ERR_NFQUEUE);
 	}
 	nfq->fd = nfq_fd(nfq->handle);
@@ -59,7 +58,7 @@ int get_and_handle(struct nfq_handle *handle, int queue_fd) {
 
 	// Handle packet
 	if (nfq_handle_packet(handle, buf, bytes) == -1) {
-		//ERR("Error while handling packet", err); // TODO why?
+		//ERR("Error while handling packet", err);
 	}
 	return 0;
 }

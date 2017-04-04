@@ -77,7 +77,7 @@ void *pb_routine(void *arg) {
 			}
 			DEBUG("Peerbase stored");
 
-			// Launch ISD (outside of lock, long stuff)
+			// Launch ISD
 			if (base->isd_pid == -1) {
 				if ((base->isd_pid = isd_startup(base)) == -1) {
 					ERR("Unable to start ISD", errno);
@@ -97,6 +97,11 @@ void create_peerbase(iprp_peerbase_t* peerbase, iprp_icd_base_t *base) {
 	peerbase->link = base->link;
 	peerbase->host = this;
 	peerbase->inds = base->inds;
+#ifndef IPRP_MULTICAST
+	for (int i = 0; i < IPRP_MAX_INDS; ++i) {
+		peerbase->dest_addr[i] = base->dest_addr[i];
+	}
+#endif
 }
 
 /**
@@ -106,10 +111,10 @@ pid_t isd_startup(iprp_icd_base_t *base) {
 	pid_t pid = fork();
 	if (!pid) { // Child side
 		// Create NFqueue
-		char dest_group[INET_ADDRSTRLEN];
-		inet_ntop(AF_INET, &base->link.dest_addr, dest_group, INET_ADDRSTRLEN);
+		char dest_addr[INET_ADDRSTRLEN];
+		inet_ntop(AF_INET, &base->link.dest_addr, dest_addr, INET_ADDRSTRLEN);
 		char shell[120];
-		snprintf(shell, 120, "iptables -t mangle -A POSTROUTING -p udp -d %s --dport %d --sport %d -j NFQUEUE --queue-num %d", dest_group, base->link.dest_port, base->link.src_port, base->queue_id); // TODO src_addr?
+		snprintf(shell, 120, "iptables -t mangle -A POSTROUTING -p udp -d %s --dport %d --sport %d -j NFQUEUE --queue-num %d", dest_addr, base->link.dest_port, base->link.src_port, base->queue_id);
 		if (system(shell) == -1) {
 			ERR("Unable to create nfqueue for ISD", errno);
 		}

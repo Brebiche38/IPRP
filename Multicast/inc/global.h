@@ -23,7 +23,7 @@
 #define IPRP_VERSION 1
 #define IPRP_CTL_PORT 1000
 #define IPRP_DATA_PORT 1001
-#define IPRP_MAX_IFACE 4 // TODO MAX_IFACE = MAX_INDS (one-to-one)
+#define IPRP_MAX_IFACE 16
 #define IPRP_MAX_INDS 16
 #define IPRP_PATH_LENGTH 50
 
@@ -42,15 +42,17 @@ typedef uint16_t iprp_ind_bitmap_t;
 /* Global structures */
 typedef struct {
 	uint8_t version;
-	unsigned char snsid[IPRP_SNSID_SIZE]; // TODO check if size possible
+	unsigned char snsid[IPRP_SNSID_SIZE];
 	uint32_t seq_nb;
 	uint16_t dest_port;
+#ifndef IPRP_MULTICAST
+	struct in_addr dest_addr;
+#endif
 	iprp_ind_t ind;
 	char hmac[160];
-} iprp_header_t;
+}__attribute__((packed)) iprp_header_t;
 
 typedef struct {
-	char name[IPRP_IFACE_NAME_LENGTH];
 	iprp_ind_t ind;
 	struct in_addr addr;
 } iprp_iface_t;

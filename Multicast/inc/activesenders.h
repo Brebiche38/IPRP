@@ -9,7 +9,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <netinet/ip.h>
 
 #include "global.h"
 
@@ -25,13 +24,15 @@
 typedef struct {
 	// Link information
 	struct in_addr src_addr;
-	struct in_addr dest_group;
+	struct in_addr dest_addr;
 	uint16_t src_port;
 	uint16_t dest_port;
 
 	// Status values
 	time_t last_seen;
+#ifdef IPRP_MULTICAST
 	bool iprp_enabled;
+#endif
 } iprp_active_sender_t;
 
 /* Disk functions */

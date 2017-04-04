@@ -14,12 +14,16 @@
 #include "activesenders.h"
 
 extern time_t curr_time;
+extern iprp_host_t this;
 
 /* Function prototypes */
 int get_active_senders(iprp_active_sender_t **senders);
-bool in_sender_ifaces(struct in_addr group_addr, struct in_addr src_addr);
 void send_cap(iprp_active_sender_t *sender, int socket);
+#ifdef IPRP_MULTICAST
 int backoff();
+// Function def in control.c
+bool in_sender_ifaces(struct in_addr group_addr, struct in_addr src_addr);
+#endif
 
 /**
  Sends CAP messages to the active senders
@@ -51,14 +55,22 @@ void* as_routine(void* arg) {
 
 		// Send CAP messages
 		for (int i = 0; i < count; ++i) {
-			if (!in_sender_ifaces(senders[i].group_addr, senders[i].src_addr)) {
-				send_cap(&senders[i], sendcap_socket);
+		#ifdef IPRP_MULTICAST
+			// Do not send CAP if ACK was received recently
+			if (!in_sender_ifaces(senders[i].dest_addr, senders[i].src_addr)) {
+				break;
 			}
+		#endif
+			send_cap(&senders[i], sendcap_socket);			
 			DEBUG("CAP sent");
 		}
 		LOG("All CAPs sent");
 
+	#ifndef IPRP_MULTICAST
+		sleep(IPRP_TCAP);
+	#else
 		sleep(IPRP_TCAP + backoff());
+	#endif
 	}
 }
 
@@ -80,15 +92,26 @@ int get_active_senders(iprp_active_sender_t **senders) {
 */
 void send_cap(iprp_active_sender_t *sender, int socket) {
 	// Create message
+	iprp_capmsg_t cap;
+	cap.iprp_version = IPRP_VERSION;
+	cap.src_addr = sender->src_addr;
+	cap.dest_addr = sender->dest_addr;
+#ifndef IPRP_MULTICAST
+	cap.receiver = this;
+#endif
+	cap.inds = ind_match(&this, -1);
+	cap.src_port = sender->src_port;
+	cap.dest_port = sender->dest_port;
+
+	// Create message wrapper
 	iprp_ctlmsg_t msg;
 	msg.secret = IPRP_CTLMSG_SECRET;
+#ifndef IPRP_MULTICAST
+	msg.cap_message = cap;
+#else
 	msg.msg_type = IPRP_CAP;
-	msg.message.cap_message.iprp_version = IPRP_VERSION;
-	msg.message.cap_message.group_addr = sender->dest_group;
-	msg.message.cap_message.src_addr = sender->src_addr;
-	msg.message.cap_message.inds = 0xf; // TODO change
-	msg.message.cap_message.src_port = sender->src_port;
-	msg.message.cap_message.dest_port = sender->dest_port;
+	msg.message.cap_message = cap;
+#endif
 
 	// Send message
 	struct sockaddr_in addr;
@@ -96,7 +119,7 @@ void send_cap(iprp_active_sender_t *sender, int socket) {
 	sendto(socket, (void*) &msg, sizeof(msg), 0, (struct sockaddr*) &addr, sizeof(addr));
 }
 
-// TODO really the good algorithm?
+#ifdef IPRP_MULTICAST
 /**
  Computes the time to wait before sending the next round of CAPs
 */
@@ -110,3 +133,4 @@ int backoff() {
 	}
 	return (1-x)*IPRP_BACKOFF_D;
 }
+#endif

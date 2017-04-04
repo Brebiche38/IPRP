@@ -14,7 +14,9 @@
 
 #define IRD_T_EXP 120
 #define IRD_T_CLEANUP 5
-#define IRD_SI_T_CACHE 3
+#ifdef IPRP_MULTICAST
+ #define IRD_SI_T_CACHE 3
+#endif
 #define IPRP_DD_MAX_LOST_PACKETS 1024
 
 /* Thread routines */
@@ -33,21 +35,24 @@ typedef struct {
 	time_t last_seen;
 } iprp_receiver_link_t;
 
-/* SSM-specific structures */
-#ifndef MCAST_JOIN_SOURCE_GROUP
-#define MCAST_JOIN_SOURCE_GROUP 46
+#ifdef IPRP_MULTICAST
+ /* SSM-specific structures */
+ #ifndef MCAST_JOIN_SOURCE_GROUP
+  #define MCAST_JOIN_SOURCE_GROUP 46
+ #endif
+ 
+ struct ip_mreqn {
+ 	struct in_addr imr_multiaddr;
+ 	struct in_addr imr_address;
+ 	int imr_ifindex;
+ };
+ 
+ struct ip_mreq_source {
+ 	struct in_addr imr_multiaddr;
+ 	struct in_addr imr_interface;
+ 	struct in_addr imr_sourceaddr;
+ };
 #endif
 
-struct ip_mreqn {
-	struct in_addr imr_multiaddr;
-	struct in_addr imr_address;
-	int imr_ifindex;
-};
-
-struct ip_mreq_source {
-	struct in_addr imr_multiaddr;
-	struct in_addr imr_interface;
-	struct in_addr imr_sourceaddr;
-};
 
 #endif /* __IPRP_IRD_ */

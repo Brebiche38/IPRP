@@ -63,27 +63,6 @@ int main(int argc, char const *argv[]) {
 	LOG("Monitoring daemon successfully created");
 
 	while(1);
-
-	/*
-	// Join on threads (should not happen)
-	void* return_value;
-	if ((err = pthread_join(time_thread, &return_value))) {
-		ERR("Unable to join on time thread", err);
-	}
-	ERR("Time thread unexpectedly finished execution", (int) return_value);
-	if ((err = pthread_join(handle_thread, &return_value))) {
-		ERR("Unable to join on handle thread", err);
-	}
-	ERR("Handle thread unexpectedly finished execution", (int) return_value);
-	if ((err = pthread_join(ird_handle_thread, &return_value))) {
-		ERR("Unable to join on IRD handle thread", err);
-	}
-	ERR("IRD Handle thread unexpectedly finished execution", (int) return_value);
-	if ((err = pthread_join(as_thread, &return_value))) {
-		ERR("Unable to join on active senders thread", err);
-	}
-	ERR("Active senders thread unexpectedly finished execution", (int) return_value);
-	*/
 	
 	/* Should not reach this part */
 	LOG("Last man standing at the end of the apocalypse");

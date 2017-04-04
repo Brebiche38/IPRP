@@ -22,20 +22,24 @@ extern time_t curr_time;
 extern iprp_host_t this;
 int control_socket;
 
+#ifdef IPRP_MULTICAST
 extern list_t sender_ifaces;
+#endif
 extern list_t peerbases;
 
 uint16_t reboot_counter = 0;
 
 /* Function prototypes */
+void handle_cap(iprp_capmsg_t *msg, struct in_addr *source);
+#ifdef IPRP_MULTICAST
 void handle_ack(iprp_ackmsg_t *msg);
-void handle_cap(iprp_capmsg_t *msg, struct sockaddr_in *source);
 int send_ack(int socket, iprp_link_t *link);
-int socket_setup();
-iprp_icd_base_t *peerbase_query(iprp_capmsg_t *msg);
 bool in_sender_ifaces(struct in_addr group_addr, struct in_addr src_addr);
 iprp_sender_ifaces_t *create_sender_ifaces(iprp_ackmsg_t *msg);
-iprp_icd_base_t *create_base(iprp_capmsg_t *msg, iprp_ind_bitmap_t matching_inds);
+#endif
+int socket_setup();
+iprp_icd_base_t *peerbase_query(iprp_capmsg_t *msg);
+iprp_icd_base_t *create_base(iprp_capmsg_t *msg, struct in_addr *src, iprp_ind_bitmap_t matching_inds);
 void snsid(iprp_link_t *link);
 uint16_t get_queue_number();
 pid_t isd_startup();
@@ -69,9 +73,12 @@ void* control_routine(void *arg) {
 		DEBUG("Received message");
 
 		// Handle message
+	#ifndef IPRP_MULTICAST
+		handle_cap(&msg.cap_message, &source.sin_addr);
+	#else
 		switch (msg.msg_type) {
 			case IPRP_CAP:
-				handle_cap((iprp_capmsg_t *) &msg.message, &source);
+				handle_cap((iprp_capmsg_t *) &msg.message, &source.sin_addr);
 				break;
 			case IPRP_ACK:
 				handle_ack((iprp_ackmsg_t *) &msg.message);
@@ -79,11 +86,64 @@ void* control_routine(void *arg) {
 			default:
 				break;
 		}
+	#endif
 		DEBUG("Message handled");
 	}
 }
 
-// TODO check
+/**
+ Handle incoming CAP messages
+
+ For each received CAP message, the handler updates or creates the corresponding peerbase.
+ It then sends an ACK message in response.
+*/
+void handle_cap(iprp_capmsg_t *msg, struct in_addr *source) {
+	list_lock(&peerbases);
+	// Query peer base for source
+	iprp_icd_base_t *base = peerbase_query(msg);
+
+	if (base) {
+		// The link is present in the peer base
+		DEBUG("Receiver found in peer base");
+		
+		// Update the peerbase
+		base->inds |= ind_match(&this, msg->inds);
+		base->last_cap = curr_time;
+		DEBUG("Peer base updated");
+	} else {
+		// The link is not present in the peerbase
+		DEBUG("Receiver not found in peer base");
+
+		// Perform IND matching
+		iprp_ind_bitmap_t matching_inds;
+		if ((matching_inds = ind_match(&this, msg->inds)) != 0) {
+			DEBUG("IND matching successful");
+
+			// Create sender link structure
+			base = create_base(msg, source, matching_inds);
+
+			list_append(&peerbases, base);
+			DEBUG("Link inserted into peer base");
+		}
+	}
+
+#ifdef IPRP_MULTICAST
+	if (base) {
+		// Send ACK
+		int err;
+		if ((err = send_ack(control_socket, &base->link))) {
+			ERR("Unable to send ACK message", err);
+		}
+		DEBUG("ACK sent");
+	}
+#endif
+
+	list_unlock(&peerbases);
+
+	LOG("CAP message handled");
+}
+
+#ifdef IPRP_MULTICAST
 /**
  Handle incoming ACK messages
 
@@ -108,56 +168,6 @@ void handle_ack(iprp_ackmsg_t *msg) {
 }
 
 /**
- Handle incoming CAP messages
-
- For each received CAP message, the handler updates or creates the corresponding peerbase.
- It then sends an ACK message in response.
-*/
-void handle_cap(iprp_capmsg_t *msg, struct sockaddr_in *source) {
-	list_lock(&peerbases);
-	// Query peer base for source
-	iprp_icd_base_t *base = peerbase_query(msg);
-
-	if (base) {
-		// The link is present in the peer base
-		DEBUG("Receiver found in peer base");
-		
-		// Update the peerbase
-		base->inds |= ind_match(&this, msg->inds);
-		base->last_cap = curr_time;
-		DEBUG("Peer base updated");
-	} else {
-		// The link is not present in the peerbase
-		DEBUG("Receiver not found in peer base");
-
-		// Perform IND matching
-		iprp_ind_bitmap_t matching_inds;
-		if ((matching_inds = ind_match(&this, msg->inds)) != 0) {
-			DEBUG("IND matching successful");
-
-			// Create sender link structure
-			base = create_base(msg, matching_inds);
-
-			list_append(&peerbases, base);
-			DEBUG("Link inserted into peer base");
-		}
-	}
-
-	if (base) {
-		// Send ACK
-		int err;
-		if ((err = send_ack(control_socket, &base->link))) {
-			ERR("Unable to send ACK message", err);
-		}
-		DEBUG("ACK sent");
-	}
-
-	list_unlock(&peerbases);
-
-	LOG("CAP message handled");
-}
-
-/**
  Sends an ACK message
 */
 int send_ack(int socket, iprp_link_t *link) {
@@ -179,6 +189,9 @@ int send_ack(int socket, iprp_link_t *link) {
 
 	return 0;
 }
+
+#endif
+
 /**
  Creates and sets up the control socket
 */
@@ -200,6 +213,7 @@ int socket_setup() {
 	}
 	DEBUG("Control socket bound");
 
+#ifdef IPRP_MULTICAST
 	// Set multicast options
 	setsockopt(ctl_socket, IPPROTO_IP, IP_MULTICAST_IF, &this.ifaces[0].addr, sizeof(struct in_addr));
 	uint8_t ttl = 255;
@@ -207,6 +221,7 @@ int socket_setup() {
 	bool loopback = false;
 	setsockopt(ctl_socket, IPPROTO_IP, IP_MULTICAST_LOOP, &loopback, sizeof(loopback));
 	DEBUG("Control socket multicast options set");
+#endif
 
 	return ctl_socket;
 }
@@ -220,7 +235,9 @@ iprp_icd_base_t *peerbase_query(iprp_capmsg_t *msg) {
 	while(iterator) {
 		iprp_icd_base_t *base = (iprp_icd_base_t *) iterator->elem;
 		iprp_link_t *link = &base->link;
-		if (link->dest_addr.s_addr == msg->group_addr.s_addr && link->src_port == msg->src_port && link->dest_port == msg->dest_port) {
+		if (link->dest_addr.s_addr == msg->dest_addr.s_addr
+			&& link->src_port == msg->src_port
+			&& link->dest_port == msg->dest_port) {
 			return base;
 		}
 		iterator = iterator->next;
@@ -229,6 +246,7 @@ iprp_icd_base_t *peerbase_query(iprp_capmsg_t *msg) {
 	return NULL;
 }
 
+#ifdef IPRP_MULTICAST
 /**
  Looks up the sender interfaces for one corresponding to the given information
 */
@@ -274,11 +292,12 @@ iprp_sender_ifaces_t *create_sender_ifaces(iprp_ackmsg_t *msg) {
 
 	return new_sender;
 }
+#endif
 
 /**
  Creates the peerbase for the given CAP message
 */
-iprp_icd_base_t *create_base(iprp_capmsg_t *msg, iprp_ind_bitmap_t matching_inds) {
+iprp_icd_base_t *create_base(iprp_capmsg_t *msg, struct in_addr *src, iprp_ind_bitmap_t matching_inds) {
 	iprp_icd_base_t *base = malloc(sizeof(iprp_icd_base_t));
 	if (!base) {
 		ERR("Unable to allocate ICD base", errno);
@@ -286,12 +305,20 @@ iprp_icd_base_t *create_base(iprp_capmsg_t *msg, iprp_ind_bitmap_t matching_inds
 
 	iprp_link_t *link = &base->link;
 	link->src_addr = msg->src_addr;
-	link->dest_addr = msg->group_addr;
+	link->dest_addr = msg->dest_addr;
 	link->src_port = msg->src_port;
 	link->dest_port = msg->dest_port;
 	snsid(link);
 
 	base->inds = matching_inds;
+	printf("Bye\n");
+#ifndef IPRP_MULTICAST
+	printf("Hello\n");
+	for (int i = 0; i < msg->receiver.nb_ifaces; ++i) {
+		printf("Ind %x, addr %x\n", msg->receiver.ifaces[i].ind, msg->receiver.ifaces[i].addr.s_addr);
+		base->dest_addr[msg->receiver.ifaces[i].ind] = msg->receiver.ifaces[i].addr;
+	}
+#endif
 	base->isd_pid = -1;
 	base->queue_id = get_queue_number();
 	base->last_cap = curr_time;
@@ -303,15 +330,14 @@ iprp_icd_base_t *create_base(iprp_capmsg_t *msg, iprp_ind_bitmap_t matching_inds
  Fills in the SNSID for a given link
 */
 void snsid(iprp_link_t *link) {
-	for (int i = 0; i < 16/sizeof(link->dest_addr); ++i) {
-		memcpy(&link->snsid[4*i], &link->dest_addr, sizeof(link->dest_addr));
+	for (int i = 0; i < 16/sizeof(link->src_addr); ++i) {
+		memcpy(&link->snsid[4*i], &link->src_addr, sizeof(link->src_addr));
 	}
-	memcpy(&link->snsid[16], &link->dest_port, sizeof(link->dest_port));
+	memcpy(&link->snsid[16], &link->src_port, sizeof(link->src_port));
 	memcpy(&link->snsid[18], &reboot_counter, sizeof(reboot_counter));
 	reboot_counter++;
 }
 
-// TODO better ?
 /**
  Returns an unused netfilter queue number
 */

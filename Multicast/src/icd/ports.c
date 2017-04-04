@@ -22,8 +22,7 @@ bool find_port_in_list(uint16_t port, list_t *list);
 void iptables_rule(uint16_t port, uint16_t queue_num, bool create);
 pid_t ird_launch(uint16_t queue_num, uint16_t imd_queue_num);
 pid_t imd_launch(uint16_t queue_num, uint16_t ird_queue_num);
-void ird_shutdown();
-void imd_shutdown();
+void proc_shutdown(pid_t pid);
 
 /**
  Caches the monitored ports file and the IMD and IRD
@@ -88,8 +87,8 @@ void* ports_routine(void* arg) {
 		// Create or delete IRD/IMD
 		if (receiver_active && (list_size(&monitored_ports) == 0)) {
 			// Shutdown IMD and IRD
-			ird_shutdown();
-			imd_shutdown();
+			proc_shutdown(ird_pid);
+			proc_shutdown(imd_pid);
 			receiver_active = false;
 			DEBUG("IRD and IMD shutdown");
 		} else if (!receiver_active && list_size(&monitored_ports) > 0) {
@@ -230,10 +229,10 @@ pid_t imd_launch(uint16_t queue_num, uint16_t ird_queue_num) {
 	}
 }
 
-void ird_shutdown() {
-	// TODO
-}
-
-void imd_shutdown() {
-	// TODO
+void proc_shutdown(pid_t pid) {
+	char shell[16];
+	snprintf(shell, 16, "kill -9 %d", pid);
+	if (system(shell) == -1) {
+		ERR("Unable to shutdown process", errno);
+	}
 }

@@ -30,7 +30,7 @@ void* cleanup_routine(void* arg);
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
 uint16_t ip_checksum(struct iphdr *header, size_t len);
 uint16_t udp_checksum(uint16_t *packet, size_t len, uint32_t src_addr, uint32_t dest_addr);
-char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size, struct in_addr src_addr);
+char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size, struct in_addr src_addr, uint16_t src_port);
 iprp_receiver_link_t *receiver_link_get(iprp_header_t *header);
 iprp_receiver_link_t *receiver_link_create(iprp_header_t *header);
 bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link);
@@ -87,14 +87,13 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	int bytes;
 	unsigned char *buf;
 	if ((bytes = nfq_get_payload(packet, &buf)) == -1) {
-		// TODO just let it go ?
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);
 	}
 	DEBUG("Got payload");
 
 	// Get payload headers
-	struct iphdr *ip_header = (struct iphdr *) buf; // TODO assert IP header length = 20 bytes
-	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr)); // TODO sizeof(uint32_t) * ip_header->ip_hdr_len
+	struct iphdr *ip_header = (struct iphdr *) buf;
+	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr));
 	iprp_header_t *iprp_header = (iprp_header_t *) (buf + sizeof(struct iphdr) + sizeof(struct udphdr));
 	char *payload = buf + sizeof(struct iphdr) + sizeof(struct udphdr) + sizeof(iprp_header_t);
 	size_t payload_size = bytes - sizeof(struct iphdr) - sizeof(struct udphdr) - sizeof(iprp_header_t);
@@ -140,9 +139,8 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	DEBUG("List unlocked");
 	
 	// Get header
-	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr (packet); // TODO no error check in IPv6 version
+	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr (packet);
 	if (!nfq_header) {
-		// TODO just let it go?
 		ERR("Unable to retrieve header from received packet", IPRP_ERR_NFQUEUE);
 	}
 	DEBUG("Got header");
@@ -151,7 +149,7 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 		// Fresh packet, tranfer to application
 		DEBUG("Fresh packet received");
 
-		char *new_packet = create_new_packet(ip_header, udp_header, iprp_header, payload, payload_size, packet_link->src_addr);
+		char *new_packet = create_new_packet(ip_header, udp_header, iprp_header, payload, payload_size, packet_link->src_addr, packet_link->src_port);
 		size_t new_packet_size = payload_size + sizeof(struct iphdr) + sizeof(struct udphdr);
 		DEBUG("Packet ready to forward");
 
@@ -182,18 +180,22 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 /**
  Creates the packet to be forwarded to the application
 */
-char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size, struct in_addr src_addr) {
+char *create_new_packet(struct iphdr *ip_header, struct udphdr *udp_header, iprp_header_t *iprp_header, char *payload, size_t payload_size, struct in_addr src_addr, uint16_t src_port) {
 	// Modify IP header
-	ip_header->saddr = htonl(src_addr); // No need to change destination address in multicast
+	ip_header->saddr = src_addr.s_addr;
+#ifndef IPRP_MULTICAST // No need to change destination address in multicast
+	ip_header->daddr = iprp_header->dest_addr.s_addr;
+#endif
 	ip_header->tot_len = htons(payload_size + sizeof(struct iphdr) + sizeof(struct udphdr));
 	ip_header->check = 0;
 	ip_header->check = ip_checksum(ip_header, sizeof(struct iphdr));
 
 	// Modify UDP headers
-	udp_header->dest = htons(iprp_header->dest_port); // TODO not sure of the order // TODO source port as well ?
+	udp_header->dest = htons(iprp_header->dest_port);
+	udp_header->source = htons(src_port);
 	udp_header->len = htons(payload_size + sizeof(struct udphdr));
 	udp_header->check = 0;
-	//udp_header->check = udp_checksum((uint16_t *) udp_header, bytes - sizeof(struct iphdr), ip_header->saddr, ip_header->daddr); // TODO warning, must be done after iPRP header is overwritten
+	//udp_header->check = udp_checksum((uint16_t *) udp_header, bytes - sizeof(struct iphdr), ip_header->saddr, ip_header->daddr);
 
 	// Move payload over IPRP header
 	memmove(iprp_header, payload, payload_size);
@@ -243,7 +245,8 @@ iprp_receiver_link_t *receiver_link_create(iprp_header_t *header) {
 
 	memcpy(&packet_link->src_addr, &header->snsid, sizeof(struct in_addr));
 	memcpy(&packet_link->src_port, &header->snsid[16], sizeof(uint16_t));
-	packet_link->src_port = ntohs(packet_link->src_port);
+	//packet_link->src_addr.s_addr = ntohl(packet_link->src_addr.s_addr);
+	//packet_link->src_port = ntohs(packet_link->src_port);
 	memcpy(&packet_link->snsid, &header->snsid, 20);
 
 	for (int i = 0; i < IPRP_DD_MAX_LOST_PACKETS; ++i) {
@@ -259,7 +262,6 @@ iprp_receiver_link_t *receiver_link_create(iprp_header_t *header) {
  Duplicate-discard algorithm
 */
 bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link) {
-	// TODO resetCtr doesn't make sense...
 	if (packet->seq_nb == link->high_sn) {
 		// Duplicate packet
 		return false;
@@ -268,10 +270,10 @@ bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link) {
 			// Fresh packet out of order
 			// We lose space for received packets (we can accept very late packets although more recent ones would be dropped)
 			for (int i = link->high_sn + 1; i < packet->seq_nb; ++i) {
-				link->list_sn[i % IPRP_DD_MAX_LOST_PACKETS] = i; // TODO does this really work? What about earlier lost packets?
+				link->list_sn[i % IPRP_DD_MAX_LOST_PACKETS] = i;
 			}
 			link->high_sn = packet->seq_nb;
-			//*resetCtr = 0; // TODO in original code, modifies last_seen (highTime)
+			//*resetCtr = 0;
 			return 1;
 		}
 		else
@@ -292,7 +294,7 @@ bool is_fresh_packet(iprp_header_t *packet, iprp_receiver_link_t *link) {
 
 			if (link->list_sn[packet->seq_nb % IPRP_DD_MAX_LOST_PACKETS] == packet->seq_nb) {
 				// The sequence number is in the list, it is a late packet
-				//Remove from List
+				// Remove from List
 				link->list_sn[packet->seq_nb % IPRP_DD_MAX_LOST_PACKETS] = 0;
 				return true;
 			} else {

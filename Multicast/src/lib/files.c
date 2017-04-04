@@ -10,7 +10,9 @@
 #include "global.h"
 #include "activesenders.h"
 #include "peerbase.h"
-#include "senderifaces.h"
+#ifdef IPRP_MULTICAST
+ #include "senderifaces.h"
+#endif
 
 /**
  Stores the given peerbase to the given file
@@ -61,8 +63,6 @@ void activesenders_store(const char* path, const int count, const iprp_active_se
 		ERR("Unable to open active senders file", errno);
 	}
 
-	// TODO prevent concurrent reading (write bit)
-
 	// Write entry count
 	fwrite(&count, sizeof(int), 1, writer);
 
@@ -103,6 +103,7 @@ int activesenders_load(const char *path, int* count, iprp_active_sender_t** send
 	return 0;
 }
 
+#ifdef IPRP_MULTICAST
 /**
  Stores the given sender interfaces to the given file
 */
@@ -112,8 +113,6 @@ void senderifaces_store(const char* path, const int count, const iprp_sender_ifa
 	if (!writer) {
 		ERR("Unable to open sender interfaces file", errno);
 	}
-
-	// TODO prevent concurrent reading (write bit)
 
 	// Write entry count
 	fwrite(&count, sizeof(int), 1, writer);
@@ -154,3 +153,4 @@ int senderifaces_load(const char *path, int* count, iprp_sender_ifaces_t** sende
 
 	return 0;
 }
+#endif

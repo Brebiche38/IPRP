@@ -12,13 +12,14 @@
 #include <pthread.h>
 #include <linux/ip.h>
 #include <linux/udp.h>
-// TODO include NFqueue
 
 #include "isd.h"
 #include "peerbase.h"
 
 extern time_t curr_time;
+#ifdef IPRP_MULTICAST
 time_t last_allowed_thru = 0; /* Multicast periodical keepalive timer */
+#endif
 
 extern iprp_isd_peerbase_t pb;
 extern int sockets[IPRP_MAX_INDS];
@@ -34,7 +35,7 @@ uint32_t get_verdict();
 */
 void* handle_routine(void* arg) {
 	intptr_t queue_id = (intptr_t) arg;
-	printf("Queue ID: %d\n", queue_id);
+	printf("Queue ID: %p\n", queue_id);
 	DEBUG("In routine");
 
 	// Setup NFQueue
@@ -81,22 +82,42 @@ int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct n
 	}
 	DEBUG("New packet of size %lu created", new_size);
 
-	// Send packet to group
-	struct sockaddr_in group_addr;
-	sockaddr_fill(&group_addr, pb.base.link.dest_addr, IPRP_DATA_PORT);
-
+	struct sockaddr_in dest_addr;
+#ifndef IPRP_MULTICAST
+	// Send packet on all interfaces
 	pthread_mutex_lock(&pb.mutex);
-	
+
 	for (int i = 0; i < pb.base.host.nb_ifaces; ++i) {
-		int err = send_packet(&pb.base.host.ifaces[i], new_packet, new_size, &group_addr, pb.base.inds);
+		printf("Iface %d, ind 0x%x, addr 0x%x\n", i, pb.base.host.ifaces[i].ind, pb.base.host.ifaces[i].addr.s_addr);
+		printf("dest 0x%x", pb.base.dest_addr[pb.base.host.ifaces[i].ind].s_addr);
+		sockaddr_fill(&dest_addr, pb.base.dest_addr[pb.base.host.ifaces[i].ind], IPRP_DATA_PORT);
+
+		int err = send_packet(&pb.base.host.ifaces[i], new_packet, new_size, &dest_addr, pb.base.inds);
 		if (err) {
 			pthread_mutex_unlock(&pb.mutex);
 			ERR("Unable to send packet", errno);			
 		}
-		DEBUG("Packet sent on interface %d to %x", i, group_addr.sin_addr.s_addr);
+		DEBUG("Packet sent on interface %d to %x", i, dest_addr.sin_addr.s_addr);
+	}
+
+	pthread_mutex_unlock(&pb.mutex);
+#else
+	// Send packet to group
+	sockaddr_fill(&dest_addr, pb.base.link.dest_addr, IPRP_DATA_PORT);
+
+	pthread_mutex_lock(&pb.mutex);
+	
+	for (int i = 0; i < pb.base.host.nb_ifaces; ++i) {
+		int err = send_packet(&pb.base.host.ifaces[i], new_packet, new_size, &dest_addr, pb.base.inds);
+		if (err) {
+			pthread_mutex_unlock(&pb.mutex);
+			ERR("Unable to send packet", errno);			
+		}
+		DEBUG("Packet sent on interface %d to %x", i, dest_addr.sin_addr.s_addr);
 	}
 	
 	pthread_mutex_unlock(&pb.mutex);
+#endif
 	
 	DEBUG("Outgoing packet handled. All duplicate packets sent.");
 	
@@ -132,6 +153,9 @@ size_t create_iprp_packet(struct nfq_data *packet, char* *new_buf, struct nfq_q_
 	header->version = IPRP_VERSION;
 	header->seq_nb = seq_nb;
 	header->dest_port = pb.base.link.dest_port;
+#ifndef IPRP_MULTICAST
+	header->dest_addr.s_addr = pb.base.link.dest_addr.s_addr;
+#endif
 	memcpy(&header->snsid, pb.base.link.snsid, IPRP_SNSID_SIZE);
 	DEBUG("IPRP header created");
 
@@ -142,7 +166,11 @@ size_t create_iprp_packet(struct nfq_data *packet, char* *new_buf, struct nfq_q_
 	*new_buf = new_packet;
 
 	// Set verdict in queue
+#ifndef IPRP_MULTICAST
+	uint32_t verdict = NF_DROP;
+#else
 	uint32_t verdict = get_verdict();
+#endif
 	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr(packet);
 	if (!nfq_header) {
 		ERR("Unable to retrieve header form received packet", IPRP_ERR_NFQUEUE);
@@ -167,6 +195,7 @@ int send_packet(iprp_iface_t *iface, char *packet, size_t packet_size, struct so
 	return 0;
 }
 
+#ifdef IPRP_MULTICAST
 /**
  Returns whether the packet should be let through (multicast only)
 */
@@ -177,3 +206,4 @@ uint32_t get_verdict() {
 	}
 	return NF_DROP;
 }
+#endif

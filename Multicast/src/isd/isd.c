@@ -102,10 +102,12 @@ int create_socket() {
 		return IPRP_ERR;
 	}
 
+#ifdef IPRP_MULTICAST
 	uint8_t ttl = 255;
 	setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
-	bool loopback = false; // TODO clean
+	bool loopback = false;
 	setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP, &loopback, sizeof(loopback));
+#endif
 
 	return sock;
 }

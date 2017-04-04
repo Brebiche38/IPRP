@@ -17,7 +17,9 @@ pthread_t control_thread;
 pthread_t ports_thread;
 pthread_t as_thread;
 pthread_t pb_thread;
+#ifdef IPRP_MULTICAST
 pthread_t si_thread;
+#endif
 pthread_t time_thread;
 
 /* Global variables */
@@ -45,11 +47,8 @@ int main(int argc, char const *argv[]) {
 	}
 	DEBUG("Interface setup complete");
 
-	/* Phase 1: Setup */
-	// TODO launch time routine
-
 	// Seed random generator
-	srand(time(NULL)); // TODO thread-safe
+	srand(time(NULL));
 	iprp_icd_recv_queues_t recv_queues;
 	do {
 		recv_queues.ird = rand() % 65535;
@@ -86,44 +85,17 @@ int main(int argc, char const *argv[]) {
 	}
 	DEBUG("Peerbase thread created");
 
-	// TODO Setup sender interfaces cleanup routine
+#ifdef IPRP_MULTICAST
+	// Setup sender interfaces cleanup routine
 	if ((err = pthread_create(&si_thread, NULL, si_routine, NULL)) != 0) {
 		ERR("Unable to setup sender interfaces thread", err);
 	}
 	DEBUG("Sender interfaces thread created");
+#endif
 
 	LOG("Control daemon successfully launched");
 
 	while(1);
-
-	/*
-	// Join on other threads (not expected to happen)
-	void* return_value;
-	if ((err = pthread_join(time_thread, &return_value))) {
-		ERR("Unable to join on time thread", err);
-	}
-	ERR("Time thread unexpectedly finished execution", (int) return_value);
-	if ((err = pthread_join(ports_thread, &return_value))) {
-		ERR("Unable to join on ports thread", err);
-	}
-	ERR("Ports thread unexpectedly finished execution", (int) return_value);
-	if ((err = pthread_join(control_thread, &return_value))) {
-		ERR("Unable to join on control thread", err);
-	}
-	ERR("Control thread unexpectedly finished execution", (int) return_value);
-	if ((err = pthread_join(as_thread, &return_value))) {
-		ERR("Unable to join on active senders thread", err);
-	}
-	ERR("Active senders thread unexpectedly finished execution", (int) return_value);
-	if ((err = pthread_join(pb_thread, &return_value))) {
-		ERR("Unable to join on peerbase thread", err);
-	}
-	ERR("Peerbase thread unexpectedly finished execution", (int) return_value);
-	if ((err = pthread_join(si_thread, &return_value))) {
-		ERR("Unable to join on sender interfaces thread", err);
-	}
-	ERR("Sender interfaces thread unexpectedly finished execution", (int) return_value);
-	*/
 
 	/* Should not reach this part */
 	LOG("Last man standing at the end of the apocalypse");

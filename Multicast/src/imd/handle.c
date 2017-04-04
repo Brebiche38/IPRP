@@ -22,8 +22,8 @@ extern list_t active_senders;
 int handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
 int ird_handle_packet(struct nfq_q_handle *queue, struct nfgenmsg *message, struct nfq_data *packet, void *data);
 int global_handle(struct nfq_q_handle *queue, struct nfq_data *packet, bool iprp_message);
-iprp_active_sender_t *activesenders_find_entry(const struct in_addr src_addr, const struct in_addr group_addr, const uint16_t src_port, const uint16_t dest_port);
-iprp_active_sender_t *activesenders_create_entry(const struct in_addr src_addr, const struct in_addr group_addr, const uint16_t src_port, const uint16_t dest_port, const bool iprp_enabled);
+iprp_active_sender_t *activesenders_find_entry(const struct in_addr src_addr, const struct in_addr dest_addr, const uint16_t src_port, const uint16_t dest_port);
+iprp_active_sender_t *activesenders_create_entry(const struct in_addr src_addr, const struct in_addr dest_addr, const uint16_t src_port, const uint16_t dest_port, const bool iprp_enabled);
 
 /**
  Sets up and launches the wrapper for the IMD queue
@@ -105,21 +105,20 @@ int global_handle(struct nfq_q_handle *queue, struct nfq_data *packet, bool iprp
 	int bytes;
 	unsigned char *buf;
 	if ((bytes = nfq_get_payload(packet, &buf)) == -1) {
-		// TODO just let it go ?
 		ERR("Unable to retrieve payload from received packet", IPRP_ERR_NFQUEUE);
 	}
 	DEBUG("Got payload");
 
 	// Get payload headers and source address
-	struct iphdr *ip_header = (struct iphdr *) buf; // TODO assert IP header length = 20 bytes
-	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr)); // TODO sizeof(uint32_t) * ip_header->ip_hdr_len
+	struct iphdr *ip_header = (struct iphdr *) buf;
+	struct udphdr *udp_header = (struct udphdr *) (buf + sizeof(struct iphdr));
 	DEBUG("Got IP/UDP headers");
 	
 	// Get link information
 	struct in_addr src_addr;
 	src_addr.s_addr = ip_header->saddr;
-	struct in_addr group_addr;
-	group_addr.s_addr = ip_header->daddr;
+	struct in_addr dest_addr;
+	dest_addr.s_addr = ip_header->daddr;
 	uint16_t src_port = ntohs(udp_header->source);
 	uint16_t dest_port = ntohs(udp_header->dest);
 	DEBUG("Got link information");
@@ -127,14 +126,14 @@ int global_handle(struct nfq_q_handle *queue, struct nfq_data *packet, bool iprp
 	// Protect the whole process from concurrent cleanup (=> better performance)
 	list_lock(&active_senders);
 
-	// Find corresponding entry in active senders (TODO too slow if too much senders, maybe limit sender count => array)
-	iprp_active_sender_t *entry = activesenders_find_entry(src_addr, group_addr, src_port, dest_port);
-	DEBUG("Finished searching for senders: src %x:%u, dst %x:%u", src_addr.s_addr, src_port, group_addr.s_addr, dest_port);
+	// Find corresponding entry in active senders
+	iprp_active_sender_t *entry = activesenders_find_entry(src_addr, dest_addr, src_port, dest_port);
+	DEBUG("Finished searching for senders: src %x:%u, dst %x:%u", src_addr.s_addr, src_port, dest_addr.s_addr, dest_port);
 
 	// Create entry if not present
 	if (!entry) {
 		// Create entry
-		entry = activesenders_create_entry(src_addr, group_addr, src_port, dest_port, iprp_message);
+		entry = activesenders_create_entry(src_addr, dest_addr, src_port, dest_port, iprp_message);
 		if (!entry) {
 			list_unlock(&active_senders);
 			ERR("malloc failed to create active senders entry", errno);
@@ -148,23 +147,29 @@ int global_handle(struct nfq_q_handle *queue, struct nfq_data *packet, bool iprp
 	
 	// Update entry timer
 	entry->last_seen = curr_time;
+#ifdef IPRP_MULTICAST
 	if (iprp_message) {
 		entry->iprp_enabled = true;
 	}
+#endif
 	DEBUG("Entry timer updated");
 
 	// Allow maintenance work to continue
 	list_unlock(&active_senders);
 
 	// Accept of reject packet accordingly
-	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr(packet); // TODO no error check in IPv6 version
+	struct nfqnl_msg_packet_hdr *nfq_header = nfq_get_msg_packet_hdr(packet);
 	if (!nfq_header) {
 		ERR("Unable to retrieve header from received packet", IPRP_ERR_NFQUEUE);
 	}
 	DEBUG("Got header");
+#ifndef IPRP_MULTICAST
+	uint32_t verdict = NF_ACCEPT;
+#else
 	uint32_t verdict = (iprp_message || !entry->iprp_enabled) ? NF_ACCEPT : NF_DROP;
+#endif
 	if (nfq_set_verdict(queue, ntohl(nfq_header->packet_id), verdict, bytes, buf) == -1) {
-		ERR("Unable to set verdict to NF_DROP", IPRP_ERR_NFQUEUE);
+		ERR("Unable to set verdict", IPRP_ERR_NFQUEUE);
 	}
 	LOG((verdict == NF_ACCEPT) ? "Packet accepted" : "Packet dropped");
 
@@ -174,16 +179,16 @@ int global_handle(struct nfq_q_handle *queue, struct nfq_data *packet, bool iprp
 /**
  Find an entry in the active senders cache corresponding to the given parameters
 */
-iprp_active_sender_t *activesenders_find_entry(const struct in_addr src_addr, const struct in_addr group_addr, const uint16_t src_port, const uint16_t dest_port) {
+iprp_active_sender_t *activesenders_find_entry(const struct in_addr src_addr, const struct in_addr dest_addr, const uint16_t src_port, const uint16_t dest_port) {
 	// Find the entry
 	list_elem_t *iterator = active_senders.head;
 	while(iterator != NULL) {
 		iprp_active_sender_t *as = (iprp_active_sender_t*) iterator->elem;
 		
-		if (src_addr.s_addr == as->src_addr.s_addr &&
-				group_addr.s_addr == as->dest_group.s_addr &&
-				//src_port == as->src_port &&
-				dest_port == as->dest_port) { // TODO really like this (one AS per sender or per port?)
+		if (src_addr.s_addr == as->src_addr.s_addr
+			&& dest_addr.s_addr == as->dest_addr.s_addr
+			&& src_port == as->src_port
+			&& dest_port == as->dest_port) {
 			return as;
 		}
 		iterator = iterator->next;
@@ -194,17 +199,19 @@ iprp_active_sender_t *activesenders_find_entry(const struct in_addr src_addr, co
 /**
  Creates an active sender entry with the corresponding parameters
 */
-iprp_active_sender_t *activesenders_create_entry(const struct in_addr src_addr, const struct in_addr group_addr, const uint16_t src_port, const uint16_t dest_port, const bool iprp_enabled) {
+iprp_active_sender_t *activesenders_create_entry(const struct in_addr src_addr, const struct in_addr dest_addr, const uint16_t src_port, const uint16_t dest_port, const bool iprp_enabled) {
 	iprp_active_sender_t *entry = malloc(sizeof(iprp_active_sender_t));
 	if (!entry) {
 		return NULL;
 	}
 
 	entry->src_addr = src_addr;
-	entry->dest_group = group_addr;
-	entry->src_port = src_port; // TODO really like this ? (one AS per sender or per port?)
+	entry->dest_addr = dest_addr;
+	entry->src_port = src_port;
 	entry->dest_port = dest_port;
+#ifdef IPRP_MULTICAST
 	entry->iprp_enabled = iprp_enabled;
+#endif
 
 	return entry;
 }

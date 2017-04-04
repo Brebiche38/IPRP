@@ -44,7 +44,9 @@ char* iprp_thr_name(iprp_thread_t thread) {
 		case ICD_PORTS: return "icd-ports";
 		case ICD_AS: return "icd-as";
 		case ICD_PB: return "icd-pb";
+	#ifdef IPRP_MULTICAST
 		case ICD_SI: return "icd-si";
+	#endif
 
 		case ISD_MAIN: return "isd";
 		case ISD_HANDLE: return "isd-handle";
@@ -56,8 +58,10 @@ char* iprp_thr_name(iprp_thread_t thread) {
 
 		case IRD_MAIN: return "ird";
 		case IRD_HANDLE: return "ird-handle";
+	#ifdef IPRP_MULTICAST
 		case IRD_SI: return "ird-si";
-
+	#endif
+		
 		default: return "???";
 	}	
 }

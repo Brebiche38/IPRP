@@ -3,6 +3,8 @@
  * 
  * \author Loic Ottet (loic.ottet@epfl.ch)
  */
+#ifdef IPRP_MULTICAST
+
 #define IPRP_FILE ICD_SI
 
 #include <errno.h>
@@ -97,3 +99,5 @@ iprp_sender_ifaces_t *get_file_contents(int count) {
 
 	return entries;
 }
+
+#endif /* IPRP_MULTICAST */

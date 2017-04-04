@@ -33,7 +33,9 @@ typedef enum {
 	ICD_PORTS = (1 << 2),
 	ICD_PB = (1 << 3),
 	ICD_AS = (1 << 4),
+#ifdef IPRP_MULTICAST
 	ICD_SI = (1 << 5),
+#endif
 
 	ISD_MAIN = (1 << 8),
 	ISD_PB = (1 << 9),
@@ -44,7 +46,9 @@ typedef enum {
 	IMD_HANDLE = (1 << 18),
 
 	IRD_MAIN = (1 << 24),
+#ifdef IPRP_MULTICAST
 	IRD_SI = (1 << 25),
+#endif
 	IRD_HANDLE = (1 << 26),
 } iprp_thread_t;
 

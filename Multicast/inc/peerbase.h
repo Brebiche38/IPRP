@@ -24,7 +24,9 @@ typedef struct {
 	iprp_link_t link;
 	iprp_host_t host;
 	iprp_ind_bitmap_t inds;
-	// struct in_addr dest_addr[IPRP_MAX_INDS]; // Unicast only
+#ifndef IPRP_MULTICAST
+	struct in_addr dest_addr[IPRP_MAX_INDS];
+#endif
 } iprp_peerbase_t;
 
 /* Disk functions */

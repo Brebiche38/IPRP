@@ -43,6 +43,7 @@ void* pb_routine(void *arg) {
 		pthread_mutex_unlock(&pb.mutex);
 		DEBUG("Peerbase cached");
 
+	#ifdef IPRP_MULTICAST
 		// Update sockets according to loaded peerbase (no need to lock nor correct dropped sockets)
 		for (int i = 0; i < pb.base.host.nb_ifaces; ++i) {
 			iprp_iface_t iface = pb.base.host.ifaces[i];
@@ -51,6 +52,7 @@ void* pb_routine(void *arg) {
 			}
 		}
 		DEBUG("Sockets updated");
+	#endif
 
 		// Allow launching of send routine
 		pb.loaded = true;
